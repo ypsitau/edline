@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 embedded-io-async = { version = "0.7.0" }
-serkey = { version = "0.1.1" }
+heapless = { version = "0.9.3" }
+serkey = { version = "0.1.2" }
