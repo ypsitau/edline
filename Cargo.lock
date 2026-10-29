@@ -95,7 +95,11 @@ dependencies = [
 
 [[package]]
 name = "edline"
-version = "0.1.0"
+version = "0.0.1"
+dependencies = [
+ "embedded-io-async",
+ "serkey",
+]
 
 [[package]]
 name = "embedded-io"
@@ -122,6 +126,12 @@ checksum = "2564b9f813c544241430e147d8bc454815ef9ac998878d30cc3055449f7fd4c0"
 dependencies = [
  "embedded-io",
 ]
+
+[[package]]
+name = "embedded-keycode"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a62c1fd05cf5111032f9e53d01cc42f6a633c3985c73cf9c365e7911aba71a61"
 
 [[package]]
 name = "errno"
@@ -195,6 +205,7 @@ dependencies = [
  "embedded-io-adapters",
  "embedded-io-async",
  "heapless",
+ "serkey",
  "tokio",
  "windows-sys",
 ]
@@ -300,6 +311,18 @@ name = "semver"
 version = "1.0.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd"
+
+[[package]]
+name = "serkey"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "318fbd60e2df55cd6d8f33efeb6f5dff05869cea816edd7666dd85c9f27ea97f"
+dependencies = [
+ "embedded-io",
+ "embedded-io-async",
+ "embedded-keycode",
+ "heapless",
+]
 
 [[package]]
 name = "signal-hook"

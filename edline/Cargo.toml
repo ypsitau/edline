@@ -1,6 +1,8 @@
 [package]
 name = "edline"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2024"
 
 [dependencies]
+embedded-io-async = { version = "0.7.0" }
+serkey = { version = "0.1.1" }
