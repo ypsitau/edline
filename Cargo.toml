@@ -1,6 +1,9 @@
-[package]
-name = "edline"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+resolver = "2"
+members = [
+    "edline",
+    "main",
+]
 
-[dependencies]
+[workspace.dependencies]
+edline = { path = "edline" }
