@@ -27,6 +27,7 @@ impl Output for DummyOutput {
     async fn move_cursor_right_n(&mut self, _n: usize) {}
     async fn delete_to_line_end(&mut self) {}
 }
+
 pub struct SerialOutput<Writer> {
     writer: Writer,
 }
@@ -75,8 +76,6 @@ impl<Writer: io_async::Write> Output for SerialOutput<Writer> {
     }
 }
 
-
-
 pub struct Editor<'a, Output> {
     output: Output,
     line_buf: &'a mut [u8],
@@ -98,6 +97,112 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
 
     pub async fn start(&mut self) {
         self.output.save_cursor_pos().await;
+    }
+
+    pub async fn process_key(&mut self, key: serkey::Key) {
+        //println!("Received key: {:?}", key);
+        match key {
+            serkey::Key::CookedChar(c) => {
+                self.insert_char(c).await;
+            }
+            serkey::Key::CookedCtrl(serkey::Ctrl::A) => {
+            }
+            serkey::Key::CookedCtrl(serkey::Ctrl::B) => {
+                self.move_cursor_left().await;
+            }
+            serkey::Key::CookedCtrl(serkey::Ctrl::D) => {
+                self.delete_char().await;
+            }
+            serkey::Key::CookedCtrl(serkey::Ctrl::E) => {
+            }
+            serkey::Key::CookedCtrl(serkey::Ctrl::F) => {
+                self.move_cursor_right().await;
+            }
+            serkey::Key::CookedCtrl(serkey::Ctrl::H) => {
+                self.backspace().await;
+            }
+            serkey::Key::CookedCtrl(serkey::Ctrl::J) => {
+            }
+            serkey::Key::CookedCtrl(serkey::Ctrl::K) => {
+            }
+            serkey::Key::CookedCtrl(serkey::Ctrl::N) => {
+            }
+            serkey::Key::CookedCtrl(serkey::Ctrl::P) => {
+            }
+            serkey::Key::Delete(attr) => {
+                if attr.is_none() {
+                    self.delete_char().await;
+                }
+            }
+            serkey::Key::Backspace(attr) => {
+                if attr.is_none() {
+                    self.backspace().await;
+                }
+            }
+            serkey::Key::Left(attr) => {
+                if attr.is_none() {
+                    self.move_cursor_left().await;
+                }
+            }
+            serkey::Key::Right(attr) => {
+                if attr.is_none() {
+                    self.move_cursor_right().await;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub async fn insert_char(&mut self, c: char) {
+        let nbytes = self.insert_char_to_buf(self.ibyte_cur, c);
+        if nbytes == 0 { return; }
+        let ibyte_next = self.ibyte_cur + nbytes;
+        if self.ibyte_end < ibyte_next {
+            self.ibyte_end = ibyte_next;
+        }
+        self.output.write(&self.line_buf[self.ibyte_cur..self.ibyte_end]).await;
+        if ibyte_next < self.ibyte_end {
+            self.output.move_cursor_left_n(self.calc_width(ibyte_next, self.ibyte_end)).await;
+        }
+        self.ibyte_cur = ibyte_next;
+    }
+
+    pub async fn delete_char(&mut self) {
+        if self.ibyte_cur >= self.ibyte_end { return; }
+        self.delete_char_from_buf(self.ibyte_cur);
+        self.output.write(&self.line_buf[self.ibyte_cur..self.ibyte_end]).await;
+        self.output.delete_to_line_end().await;
+        if self.ibyte_cur < self.ibyte_end {
+            self.output.move_cursor_left_n(self.calc_width(self.ibyte_cur, self.ibyte_end)).await;
+        }
+    }
+
+    pub async fn backspace(&mut self) {
+        if self.move_cursor_left().await {
+            self.delete_char().await;
+        }
+    }
+
+    pub async fn move_cursor_left(&mut self) -> bool {
+        if self.ibyte_cur == 0 { return false; }
+        let mut ibyte_next = self.ibyte_cur - 1;
+        while ibyte_next > 0 && self.line_buf[ibyte_next] & 0xC0 == 0x80 {
+            ibyte_next -= 1;
+        }
+        self.output.move_cursor_left_n(self.calc_width(ibyte_next, self.ibyte_cur)).await;
+        self.ibyte_cur = ibyte_next;
+        true
+    }
+
+    pub async fn move_cursor_right(&mut self) -> bool {
+        if self.ibyte_cur >= self.ibyte_end { return false; }
+        let mut ibyte_next = self.ibyte_cur + 1;
+        while ibyte_next < self.ibyte_end && self.line_buf[ibyte_next] & 0xC0 == 0x80 {
+            ibyte_next += 1;
+        }
+        self.output.move_cursor_right_n(self.calc_width(self.ibyte_cur, ibyte_next)).await;
+        self.ibyte_cur = ibyte_next;
+        true
     }
 
     pub fn insert_char_to_buf(&mut self, ibyte: usize, c: char) -> usize {
@@ -127,96 +232,9 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         nbytes_delete
     }
 
-    pub fn count_chars(&self, ibyte_start: usize, ibyte_end: usize) -> usize {
-        let mut count = 0;
-        let mut ibyte = ibyte_start;
-        while ibyte < ibyte_end {
-            let byte = self.line_buf[ibyte];
-            if byte & 0xC0 != 0x80 {
-                count += 1;
-            }
-            ibyte += 1;
-        }
-        count
-    }
-
-    pub async fn move_cursor_left(&mut self) -> usize {
-        if self.ibyte_cur == 0 { return 0; }
-        let mut ibyte_next = self.ibyte_cur - 1;
-        while ibyte_next > 0 && self.line_buf[ibyte_next] & 0xC0 == 0x80 {
-            ibyte_next -= 1;
-        }
-        let nbytes = self.ibyte_cur - ibyte_next;
-        self.output.move_cursor_left_n(nbytes).await;
-        self.ibyte_cur = ibyte_next;
-        nbytes
-    }
-
-    pub async fn move_cursor_right(&mut self) -> usize {
-        if self.ibyte_cur >= self.ibyte_end { return 0; }
-        let mut ibyte_next = self.ibyte_cur + 1;
-        while ibyte_next < self.ibyte_end && self.line_buf[ibyte_next] & 0xC0 == 0x80 {
-            ibyte_next += 1;
-        }
-        let nbytes = ibyte_next - self.ibyte_cur;
-        self.output.move_cursor_right_n(nbytes).await;
-        self.ibyte_cur = ibyte_next;
-        nbytes
-    }
-
-    pub async fn insert_char(&mut self, ibyte: usize, c: char) -> usize{
-        let nbytes = self.insert_char_to_buf(ibyte, c);
-        if nbytes == 0 { return ibyte; }
-        let ibyte_next = ibyte + nbytes;
-        if self.ibyte_end < ibyte_next {
-            self.ibyte_end = ibyte_next;
-        }
-        self.output.write(&self.line_buf[ibyte..self.ibyte_end]).await;
-        if ibyte_next < self.ibyte_end {
-            self.output.move_cursor_left_n(self.ibyte_end - ibyte_next).await;
-        }
-        ibyte_next
-    }
-
-    pub async fn delete_char(&mut self, ibyte: usize) {
-        if ibyte >= self.ibyte_end { return; }
-        self.delete_char_from_buf(ibyte);
-        self.output.write(&self.line_buf[ibyte..self.ibyte_end]).await;
-        self.output.delete_to_line_end().await;
-        if ibyte < self.ibyte_end {
-            self.output.move_cursor_left_n(self.ibyte_end - ibyte).await;
-        }
-    }
-
-    pub async fn process_key(&mut self, key: serkey::Key) {
-        //println!("Received key: {:?}", key);
-        match key {
-            serkey::Key::CookedChar(c) => {
-                self.ibyte_cur = self.insert_char(self.ibyte_cur, c).await;
-            }
-            serkey::Key::Delete(attr) => {
-                if attr.is_none() {
-                    self.delete_char(self.ibyte_cur).await;
-                }
-            }
-            serkey::Key::Backspace(attr) => {
-                if attr.is_none() {
-                    if self.move_cursor_left().await > 0 {
-                        self.delete_char(self.ibyte_cur).await;
-                    }
-                }
-            }
-            serkey::Key::Left(attr) => {
-                if attr.is_none() {
-                    self.move_cursor_left().await;
-                }
-            }
-            serkey::Key::Right(attr) => {
-                if attr.is_none() {
-                    self.move_cursor_right().await;
-                }
-            }
-            _ => {}
-        }
+    pub fn calc_width(&self, ibyte_start: usize, ibyte_end: usize) -> usize {
+        let text = core::str::from_utf8(&self.line_buf[ibyte_start..ibyte_end])
+            .expect("line buffer contains invalid UTF-8");
+        unicode_width::UnicodeWidthStr::width(text)
     }
 }
