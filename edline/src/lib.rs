@@ -1,4 +1,5 @@
-//#![no_std]
+#![no_std]
+
 use core::fmt::Write;
 use core::future::Future;
 use embedded_io_async as io_async;
