@@ -1,18 +1,32 @@
 //#![no_std]
 use core::fmt::Write;
+use core::future::Future;
 use embedded_io_async as io_async;
 use heapless::String;
 
 pub trait Output {
     type Error;
-    async fn write(&mut self, data: &[u8]);
-    async fn save_cursor_pos(&mut self);
-    async fn restore_cursor_pos(&mut self);
-    async fn move_cursor_left_n(&mut self, n: usize);
-    async fn move_cursor_right_n(&mut self, n: usize);
-    async fn delete_to_line_end(&mut self);
+
+    fn write(&mut self, data: &[u8]) -> impl Future<Output = ()>;
+    fn save_cursor_pos(&mut self) -> impl Future<Output = ()>;
+    fn restore_cursor_pos(&mut self) -> impl Future<Output = ()>;
+    fn move_cursor_left_n(&mut self, n: usize) -> impl Future<Output = ()>;
+    fn move_cursor_right_n(&mut self, n: usize) -> impl Future<Output = ()>;
+    fn delete_to_line_end(&mut self) -> impl Future<Output = ()>;
 }
 
+pub struct DummyOutput;
+
+impl Output for DummyOutput {
+    type Error = ();
+
+    async fn write(&mut self, _data: &[u8]) {}
+    async fn save_cursor_pos(&mut self) {}
+    async fn restore_cursor_pos(&mut self) {}
+    async fn move_cursor_left_n(&mut self, _n: usize) {}
+    async fn move_cursor_right_n(&mut self, _n: usize) {}
+    async fn delete_to_line_end(&mut self) {}
+}
 pub struct SerialOutput<Writer> {
     writer: Writer,
 }
