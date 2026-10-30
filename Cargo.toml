@@ -4,6 +4,7 @@ members = [
     "edline",
     "main",
 ]
+exclude = ["examples"]
 
 [workspace.dependencies]
 edline = { path = "edline" }

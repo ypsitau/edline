@@ -11,7 +11,7 @@ async fn main() -> std::io::Result<()> {
         }
         mode
     };
-    print!("Test of read_key(). Press Ctrl-C to exit\r\n");
+    print!("Press Ctrl-C to exit\r\n");
     let mut stdin = embedded_io_adapters::tokio_1::FromTokio::new(tokio::io::stdin());
     let stdout = embedded_io_adapters::tokio_1::FromTokio::new(tokio::io::stdout());
     let output = edline::SerialOutput::new(stdout);
