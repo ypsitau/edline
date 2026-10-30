@@ -106,6 +106,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
                 self.insert_char(c).await;
             }
             serkey::Key::CookedCtrl(serkey::Ctrl::A) => {
+                self.move_cursor_to_line_start().await;
             }
             serkey::Key::CookedCtrl(serkey::Ctrl::B) => {
                 self.move_cursor_left().await;
@@ -114,6 +115,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
                 self.delete_char().await;
             }
             serkey::Key::CookedCtrl(serkey::Ctrl::E) => {
+                self.move_cursor_to_line_end().await;
             }
             serkey::Key::CookedCtrl(serkey::Ctrl::F) => {
                 self.move_cursor_right().await;
@@ -124,6 +126,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             serkey::Key::CookedCtrl(serkey::Ctrl::J) => {
             }
             serkey::Key::CookedCtrl(serkey::Ctrl::K) => {
+                self.delete_to_line_end().await;
             }
             serkey::Key::CookedCtrl(serkey::Ctrl::N) => {
             }
@@ -177,10 +180,28 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         }
     }
 
+    pub async fn delete_to_line_end(&mut self) {
+        if self.ibyte_cur >= self.ibyte_end { return; }
+        self.output.delete_to_line_end().await;
+        self.ibyte_end = self.ibyte_cur;
+    }
+
     pub async fn backspace(&mut self) {
         if self.move_cursor_left().await {
             self.delete_char().await;
         }
+    }
+
+    pub async fn move_cursor_to_line_start(&mut self) {
+        if self.ibyte_cur == 0 { return; }
+        self.output.move_cursor_left_n(self.calc_width(0, self.ibyte_cur)).await;
+        self.ibyte_cur = 0;
+    }
+
+    pub async fn move_cursor_to_line_end(&mut self) {
+        if self.ibyte_cur == self.ibyte_end { return; }
+        self.output.move_cursor_right_n(self.calc_width(self.ibyte_cur, self.ibyte_end)).await;
+        self.ibyte_cur = self.ibyte_end;
     }
 
     pub async fn move_cursor_left(&mut self) -> bool {
