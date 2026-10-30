@@ -152,6 +152,16 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
                     self.move_cursor_right().await;
                 }
             }
+            serkey::Key::Home(attr) => {
+                if attr.is_none() {
+                    self.move_cursor_to_line_start().await;
+                }
+            }
+            serkey::Key::End(attr) => {
+                if attr.is_none() {
+                    self.move_cursor_to_line_end().await;
+                }
+            }
             _ => {}
         }
     }
