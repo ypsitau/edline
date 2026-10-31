@@ -10,5 +10,5 @@ exclude = ["examples"]
 edline = { path = "edline" }
 embedded-io-async = { version = "0.7.0" }
 heapless = { version = "0.9.3" }
-serkey = { version = "0.1.3" }
+serkey = { version = "0.1.4" }
 unicode-width = { version = "0.2.3", features = ["no_std"] }

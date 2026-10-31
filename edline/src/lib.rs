@@ -270,3 +270,9 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         unicode_width::UnicodeWidthStr::width(text)
     }
 }
+
+impl<'a, Writer: io_async::Write> Editor<'a, SerialOutput<Writer>> {
+    pub fn with_serial_output(writer: Writer, line_buf: &'a mut [u8], history_buf: &'a mut [u8]) -> Self {
+        Self::new(SerialOutput::new(writer), line_buf, history_buf)
+    }
+}

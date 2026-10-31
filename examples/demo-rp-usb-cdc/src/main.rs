@@ -76,11 +76,11 @@ async fn main(_spawner: emb::executor::Spawner) {
     };
     let mut usb_device = usb_builder.build();
     let fut_usb = usb_device.run();
-    let fut_echo = task_echo(cdc_sender, cdc_receiver);
+    let fut_echo = task_edline(cdc_sender, cdc_receiver);
     emb::futures::join::join(fut_usb, fut_echo).await;
 }
 
-async fn task_echo(mut writer: impl io_async::Write, mut reader: impl io_async::Read) -> ! {
+async fn task_edline(mut writer: impl io_async::Write, mut reader: impl io_async::Read) -> ! {
     info!("Starting echo task");
     let mut line_buf = {
         static STATIC_CELL: StaticCell<[u8; 128]> = StaticCell::new();
@@ -90,12 +90,11 @@ async fn task_echo(mut writer: impl io_async::Write, mut reader: impl io_async::
         static STATIC_CELL: StaticCell<[u8; 1024]> = StaticCell::new();
         STATIC_CELL.init([0u8; 1024])
     };
-    let output = edline::SerialOutput::new(writer);
-    let mut editor = edline::Editor::new(output, line_buf, history_buf);
+    let mut editor = edline::Editor::with_serial_output(writer, line_buf, history_buf);
     let mut serkey_reader = serkey::Reader::new();
     editor.start().await;
     loop {
-        if let Some(key) = serkey_reader.read_key(&mut reader).await {
+        if let Ok(key) = serkey_reader.read_key(&mut reader).await {
             editor.process_key(key).await;
         }
     }

@@ -14,18 +14,19 @@ async fn main() -> std::io::Result<()> {
     print!("Press Ctrl-C to exit\r\n");
     let mut stdin = embedded_io_adapters::tokio_1::FromTokio::new(tokio::io::stdin());
     let stdout = embedded_io_adapters::tokio_1::FromTokio::new(tokio::io::stdout());
-    let output = edline::SerialOutput::new(stdout);
     let mut line_buf = vec![0u8; 128];
     let mut history_buf = vec![0u8; 1024];
-    let mut editor = edline::Editor::new(output, &mut line_buf, &mut history_buf);
+    let mut editor = edline::Editor::with_serial_output(stdout, &mut line_buf, &mut history_buf);
     let mut serkey_reader = serkey::Reader::new();
     editor.start().await;
     loop {
-        if let Some(key) = serkey_reader.read_key(&mut stdin).await {
+        if let Ok(key) = serkey_reader.read_key(&mut stdin).await {
             match key {
                 serkey::Key::CookedCtrl(0x03) => break,
                 _ => editor.process_key(key).await,
             }
+        } else {
+            break;
         }
     }
     crossterm::terminal::disable_raw_mode()?;
