@@ -15,12 +15,14 @@ struct Board<UartTx, UartRx> {
 
 #[esp_rtos::main]
 async fn main(_spawner: emb::executor::Spawner) {
-    let mut board = init_board();
+    let board = init_board();
     let fut_edline = task_edline(board.uart_tx, board.uart_rx);
     fut_edline.await;
 }
 
 async fn task_edline(mut writer: impl io_async::Write, mut reader: impl io_async::Read) -> ! {
+    writer.write_all(b"Starting editor...\r\n").await.ok();
+    writer.flush().await.ok();
     let mut line_buf = {
         static STATIC_CELL: StaticCell<[u8; 128]> = StaticCell::new();
         STATIC_CELL.init([0u8; 128])
@@ -29,8 +31,6 @@ async fn task_edline(mut writer: impl io_async::Write, mut reader: impl io_async
         static STATIC_CELL: StaticCell<[u8; 1024]> = StaticCell::new();
         STATIC_CELL.init([0u8; 1024])
     };
-    writer.write_all(b"Starting editor...\r\n").await.ok();
-    writer.flush().await.ok();
     let mut editor = edline::Editor::with_serial_output(writer, line_buf, history_buf);
     let mut serkey_reader = serkey::Reader::new();
     editor.start().await;

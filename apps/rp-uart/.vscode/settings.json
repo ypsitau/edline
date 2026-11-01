@@ -1,0 +1,16 @@
+{
+  "rust-analyzer.cargo.target": "thumbv6m-none-eabi",
+  "rust-analyzer.check.allTargets": false,
+  "editor.formatOnSave": true,
+  "[rust]": {
+    "editor.formatOnSave": false,
+    "editor.formatOnType": false,
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "never",
+      "source.organizeImports": "never"
+    }
+  },
+  "files.exclude": {
+    ".pico-rs": true
+  }
+}
