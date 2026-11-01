@@ -6,7 +6,6 @@ mod emb {
     pub use embassy_executor as executor;
 }
 use embedded_io_async as io_async;
-use static_cell::StaticCell;
 
 struct Board<UartTx, UartRx> {
     uart_tx: UartTx,
