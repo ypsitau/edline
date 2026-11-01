@@ -104,66 +104,33 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     pub async fn process_key(&mut self, key: serkey::Key) {
         //println!("Received key: {:?}", key);
         match key {
-            serkey::Key::CookedChar(c) => {
-                self.insert_char(c).await;
-            }
-            serkey::Key::CookedCtrl(serkey::Ctrl::A) => {
-                self.move_cursor_to_line_start().await;
-            }
-            serkey::Key::CookedCtrl(serkey::Ctrl::B) => {
-                self.move_cursor_left().await;
-            }
-            serkey::Key::CookedCtrl(serkey::Ctrl::D) => {
-                self.delete_char().await;
-            }
-            serkey::Key::CookedCtrl(serkey::Ctrl::E) => {
-                self.move_cursor_to_line_end().await;
-            }
-            serkey::Key::CookedCtrl(serkey::Ctrl::F) => {
-                self.move_cursor_right().await;
-            }
-            serkey::Key::CookedCtrl(serkey::Ctrl::H) => {
-                self.backspace().await;
-            }
-            serkey::Key::CookedCtrl(serkey::Ctrl::J) => {
-            }
-            serkey::Key::CookedCtrl(serkey::Ctrl::K) => {
-                self.delete_to_line_end().await;
-            }
-            serkey::Key::CookedCtrl(serkey::Ctrl::N) => {
-            }
-            serkey::Key::CookedCtrl(serkey::Ctrl::P) => {
-            }
-            serkey::Key::Delete(attr) => {
-                if attr.is_none() {
-                    self.delete_char().await;
-                }
-            }
-            serkey::Key::Backspace(attr) => {
-                if attr.is_none() {
-                    self.backspace().await;
-                }
-            }
-            serkey::Key::Left(attr) => {
-                if attr.is_none() {
-                    self.move_cursor_left().await;
-                }
-            }
-            serkey::Key::Right(attr) => {
-                if attr.is_none() {
-                    self.move_cursor_right().await;
-                }
-            }
-            serkey::Key::Home(attr) => {
-                if attr.is_none() {
-                    self.move_cursor_to_line_start().await;
-                }
-            }
-            serkey::Key::End(attr) => {
-                if attr.is_none() {
-                    self.move_cursor_to_line_end().await;
-                }
-            }
+            serkey::Key::CookedChar(c) => { self.insert_char(c).await; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::A) => { self.move_cursor_to_line_start().await; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::B) => { self.move_cursor_left().await; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::D) => { self.delete_char().await; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::E) => { self.move_cursor_to_line_end().await; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::F) => { self.move_cursor_right().await; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::H) => { self.backspace().await; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::J) => {}
+            serkey::Key::CookedCtrl(serkey::Ctrl::K) => { self.delete_to_line_end().await; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::N) => {}
+            serkey::Key::CookedCtrl(serkey::Ctrl::P) => {}
+            serkey::Key::A(attr) if attr.is_ctrl() => { self.move_cursor_to_line_start().await; }
+            serkey::Key::B(attr) if attr.is_ctrl() => { self.move_cursor_left().await; }
+            serkey::Key::D(attr) if attr.is_ctrl() => { self.delete_char().await; }
+            serkey::Key::E(attr) if attr.is_ctrl() => { self.move_cursor_to_line_end().await; }
+            serkey::Key::F(attr) if attr.is_ctrl() => { self.move_cursor_right().await; }
+            serkey::Key::H(attr) if attr.is_ctrl() => { self.backspace().await; }
+            serkey::Key::J(attr) if attr.is_ctrl() => {}
+            serkey::Key::K(attr) if attr.is_ctrl() => { self.delete_to_line_end().await; }
+            serkey::Key::N(attr) if attr.is_ctrl() => {}
+            serkey::Key::P(attr) if attr.is_ctrl() => {}
+            serkey::Key::Delete(attr) if attr.is_none() => { self.delete_char().await; }
+            serkey::Key::Backspace(attr) if attr.is_none() => { self.backspace().await; }
+            serkey::Key::Left(attr) if attr.is_none() => { self.move_cursor_left().await; }
+            serkey::Key::Right(attr) if attr.is_none() => { self.move_cursor_right().await; }
+            serkey::Key::Home(attr) if attr.is_none() => { self.move_cursor_to_line_start().await; }
+            serkey::Key::End(attr) if attr.is_none() => { self.move_cursor_to_line_end().await; }
             _ => {}
         }
     }
