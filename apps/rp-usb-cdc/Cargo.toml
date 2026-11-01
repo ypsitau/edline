@@ -1,15 +1,19 @@
 [package]
 edition = "2024"
-name = "demo-rp-usb-cdc"
+name = "rp-usb-cdc"
 version = "0.1.0"
 license = "MIT or Apache-2.0"
+publish = false
+
+[workspace]
+# An empty workspace section means that this package is independent of the parent workspace.
 
 [build-dependencies]
 regex = { version = "1.11.0" }
 
 [dependencies]
 edline = { path = "../../edline" }
-serkey = { version = "0.1.3" }
+serkey = { version = "0.1.4" }
 
 defmt = { version = "1" }
 defmt-rtt = { version = "1" }

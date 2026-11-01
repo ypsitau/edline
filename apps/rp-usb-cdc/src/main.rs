@@ -76,12 +76,12 @@ async fn main(_spawner: emb::executor::Spawner) {
     };
     let mut usb_device = usb_builder.build();
     let fut_usb = usb_device.run();
-    let fut_echo = task_edline(cdc_sender, cdc_receiver);
-    emb::futures::join::join(fut_usb, fut_echo).await;
+    let fut_edline = task_edline(cdc_sender, cdc_receiver);
+    emb::futures::join::join(fut_usb, fut_edline).await;
 }
 
 async fn task_edline(mut writer: impl io_async::Write, mut reader: impl io_async::Read) -> ! {
-    info!("Starting echo task");
+    info!("Starting edline task");
     let mut line_buf = {
         static STATIC_CELL: StaticCell<[u8; 128]> = StaticCell::new();
         STATIC_CELL.init([0u8; 128])

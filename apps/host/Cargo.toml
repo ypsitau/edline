@@ -2,10 +2,11 @@
 name = "main"
 version = "0.1.0"
 edition = "2024"
+publish = false
 
 [dependencies]
 edline = { workspace = true }
-serkey = { version = "0.1.1" }
+serkey = { workspace = true }
 
 crossterm = { version = "0.29.0" }
 heapless = { version = "0.9.3" }
