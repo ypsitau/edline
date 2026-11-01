@@ -4,6 +4,7 @@ use core::fmt::Write;
 use core::future::Future;
 use embedded_io_async as io_async;
 use heapless::String;
+use static_cell::StaticCell;
 
 pub trait Output {
     type Error;
@@ -274,5 +275,32 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
 impl<'a, Writer: io_async::Write> Editor<'a, SerialOutput<Writer>> {
     pub fn with_serial_output(writer: Writer, line_buf: &'a mut [u8], history_buf: &'a mut [u8]) -> Self {
         Self::new(SerialOutput::new(writer), line_buf, history_buf)
+    }
+}
+
+#[allow(dead_code)]
+pub async fn simple_task(mut writer: impl io_async::Write, mut reader: impl io_async::Read, enable_break: bool) {
+    writer.write_all(b"Starting editor...\r\n").await.ok();
+    writer.flush().await.ok();
+    let mut line_buf = {
+        const BUFSIZE: usize = 128;
+        static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
+        STATIC_CELL.init([0u8; BUFSIZE])
+    };
+    let mut history_buf = {
+        const BUFSIZE: usize = 1024;
+        static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
+        STATIC_CELL.init([0u8; BUFSIZE])
+    };
+    let mut editor = Editor::with_serial_output(writer, line_buf, history_buf);
+    let mut serkey_reader = serkey::Reader::new();
+    editor.start().await;
+    loop {
+        if let Ok(key) = serkey_reader.read_key(&mut reader).await {
+            if enable_break {
+                if let serkey::Key::CookedCtrl(serkey::Ctrl::C) = key { break; }
+            }
+            editor.process_key(key).await;
+        }
     }
 }
