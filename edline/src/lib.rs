@@ -282,12 +282,12 @@ impl<'a, Writer: io_async::Write> Editor<'a, SerialOutput<Writer>> {
 pub async fn simple_task(mut writer: impl io_async::Write, mut reader: impl io_async::Read, enable_break: bool) {
     writer.write_all(b"Starting editor...\r\n").await.ok();
     writer.flush().await.ok();
-    let mut line_buf = {
+    let line_buf = {
         const BUFSIZE: usize = 128;
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
-    let mut history_buf = {
+    let history_buf = {
         const BUFSIZE: usize = 1024;
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])

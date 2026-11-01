@@ -7,7 +7,6 @@ mod emb {
     pub use embassy_futures as futures;
     pub use embassy_usb as usb;
 }
-use embedded_io_async as io_async;
 use core::sync::atomic;
 use defmt::info;
 use static_cell::StaticCell;
@@ -76,28 +75,8 @@ async fn main(_spawner: emb::executor::Spawner) {
     };
     let mut usb_device = usb_builder.build();
     let fut_usb = usb_device.run();
-    let fut_edline = task_edline(cdc_sender, cdc_receiver);
+    let fut_edline = edline::simple_task(cdc_sender, cdc_receiver, false);
     emb::futures::join::join(fut_usb, fut_edline).await;
-}
-
-async fn task_edline(mut writer: impl io_async::Write, mut reader: impl io_async::Read) -> ! {
-    info!("Starting edline task");
-    let mut line_buf = {
-        static STATIC_CELL: StaticCell<[u8; 128]> = StaticCell::new();
-        STATIC_CELL.init([0u8; 128])
-    };
-    let mut history_buf = {
-        static STATIC_CELL: StaticCell<[u8; 1024]> = StaticCell::new();
-        STATIC_CELL.init([0u8; 1024])
-    };
-    let mut editor = edline::Editor::with_serial_output(writer, line_buf, history_buf);
-    let mut serkey_reader = serkey::Reader::new();
-    editor.start().await;
-    loop {
-        if let Ok(key) = serkey_reader.read_key(&mut reader).await {
-            editor.process_key(key).await;
-        }
-    }
 }
 
 struct USBHandler {
