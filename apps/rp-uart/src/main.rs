@@ -12,8 +12,6 @@ mod emb {
     pub use embassy_executor as executor;
 }
 use embedded_io_async as io_async;
-use embedded_io_async::{Read as _, Write as _};
-use defmt::info;
 use static_cell::StaticCell;
 
 struct Board<UartTx, UartRx> {
@@ -24,29 +22,8 @@ struct Board<UartTx, UartRx> {
 #[emb::executor::main]
 async fn main(_spawner: emb::executor::Spawner) {
     let board = init_board();
-    let fut_edline = task_edline(board.uart_tx, board.uart_rx);
+    let fut_edline = edline::simple_task(board.uart_tx, board.uart_rx, false);
     fut_edline.await;
-}
-
-async fn task_edline(mut writer: impl io_async::Write, mut reader: impl io_async::Read) -> ! {
-    writer.write_all(b"Starting editor...\r\n").await.ok();
-    writer.flush().await.ok();
-    let mut line_buf = {
-        static STATIC_CELL: StaticCell<[u8; 128]> = StaticCell::new();
-        STATIC_CELL.init([0u8; 128])
-    };
-    let mut history_buf = {
-        static STATIC_CELL: StaticCell<[u8; 1024]> = StaticCell::new();
-        STATIC_CELL.init([0u8; 1024])
-    };
-    let mut editor = edline::Editor::with_serial_output(writer, line_buf, history_buf);
-    let mut serkey_reader = serkey::Reader::new();
-    editor.start().await;
-    loop {
-        if let Ok(key) = serkey_reader.read_key(&mut reader).await {
-            editor.process_key(key).await;
-        }
-    }
 }
 
 //-----------------------------------------------------------------------------
