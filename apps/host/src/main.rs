@@ -1,6 +1,3 @@
-use embedded_io_async as io_async;
-use static_cell::StaticCell;
-
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> std::io::Result<()> {
     crossterm::terminal::enable_raw_mode()?;
