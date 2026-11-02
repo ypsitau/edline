@@ -1,3 +1,5 @@
+use rand::RngExt;
+
 /*
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> std::io::Result<()> {
@@ -28,35 +30,17 @@ async fn main() -> std::io::Result<()> {
 */
 
 fn main() {
+    let mut rng = rand::rng();
+    let mut buf_write = [0u8; 64];
     let mut buf = [0u8; 64];
     let mut round_buf = edline::RoundBuffer::new(&mut buf);
     round_buf.print();
-    round_buf.add(b"0000000000").unwrap();
-    round_buf.print();
-    round_buf.add(b"1111111111").unwrap();
-    round_buf.print();
-    round_buf.add(b"2222222222").unwrap();
-    round_buf.print();
-    round_buf.add(b"3333333333").unwrap();
-    round_buf.print();
-    round_buf.add(b"4444444444").unwrap();
-    round_buf.print();
-    round_buf.add(b"5555555555").unwrap();
-    round_buf.print();
-    round_buf.add(b"6666666666").unwrap();
-    round_buf.print();
-    round_buf.add(b"7777777777").unwrap();
-    round_buf.print();
-    round_buf.add(b"8888888888").unwrap();
-    round_buf.print();
-    round_buf.add(b"9999999999").unwrap();
-    round_buf.print();
-    round_buf.add(b"aaaaaaaaaa").unwrap();
-    round_buf.print();
-    round_buf.add(b"bbbbbbbbbb").unwrap();
-    round_buf.print();
-    round_buf.add(b"cccccccccc").unwrap();
-    round_buf.print();
-    round_buf.add(b"dddddddddd").unwrap();
-    round_buf.print();
+    for i_trial in 0..100 {
+        let len = rng.random_range(0..32);
+        for i in 0..len {
+            buf_write[i] = b'A' + (i_trial % 26) as u8;
+        }
+        round_buf.add(&buf_write[..len]).unwrap();
+        round_buf.print();
+    }
 }

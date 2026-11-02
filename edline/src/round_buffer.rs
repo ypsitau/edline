@@ -15,7 +15,6 @@ impl<'a> RoundBuffer<'a> {
 
     pub fn add(&mut self, src: &[u8]) -> Result<(), ()> {
         if src.len() + 1 > self.capacity() { return Err(()); }
-        if self.idx_write >= self.buf.len() { self.idx_write = 0; }
         let idx_write_end = self.idx_write + src.len() + 1;
         if idx_write_end <= self.buf.len() {
             if self.buf_full {
@@ -58,6 +57,7 @@ impl<'a> RoundBuffer<'a> {
             self.idx_last = self.idx_write;
             self.idx_write = idx_write_end;
         }
+        if self.idx_write >= self.buf.len() { self.idx_write = 0; }
         Ok(())
     }
 

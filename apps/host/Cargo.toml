@@ -15,6 +15,7 @@ tokio = { version = "1", features = ["io-std", "io-util", "macros", "rt"] }
 embedded-io = { version = "0.7.1" }
 embedded-io-async = { version = "0.7.0" }
 embedded-io-adapters = { version = "0.7.0", features = ["tokio-1"] }
+rand = { version = "0.10.3" }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = ["Win32_System_Console"] }
