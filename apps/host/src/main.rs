@@ -35,6 +35,29 @@ fn main() {
     let mut buf = [0u8; 64];
     let mut round_buf = edline::RoundBuffer::new(&mut buf);
     round_buf.print();
+    round_buf.add(&[b'0'; 17]).unwrap();
+    round_buf.print();
+    round_buf.add(&[b'1'; 17]).unwrap();
+    round_buf.print();
+    round_buf.add(&[b'2'; 17]).unwrap();
+    round_buf.print();
+    round_buf.add(&[b'3'; 17]).unwrap();
+    round_buf.print();
+    round_buf.add(&[b'4'; 17]).unwrap();
+    round_buf.print();
+    round_buf.add(&[0; 0]).unwrap();
+    round_buf.print();
+    round_buf.add(&[0; 0]).unwrap();
+    round_buf.print();
+    round_buf.add(&[b'5'; 17]).unwrap();
+    round_buf.print();
+    round_buf.add(&[b'6'; 17]).unwrap();
+    round_buf.print();
+    round_buf.add(&[b'7'; 17]).unwrap();
+    round_buf.print();
+    round_buf.add(&[b'8'; 17]).unwrap();
+    round_buf.print();
+    return;
     for i_trial in 0..100 {
         let len = rng.random_range(0..32);
         for i in 0..len {
