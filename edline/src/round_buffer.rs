@@ -20,15 +20,18 @@ impl<'a> RoundBuffer<'a> {
         if idx_write_end <= self.buf.len() {
             if self.buf_full {
                 let mut round_up = false;
-                while self.idx_first < self.idx_write && !round_up {
-                    self.idx_first += 1;
-                    if self.idx_first >= self.buf.len() { self.idx_first = 0; }
+                while self.idx_first < idx_write_end && !round_up {
                     while self.buf[self.idx_first] != 0x00 {
                         self.idx_first += 1;
                         if self.idx_first >= self.buf.len() {
                             self.idx_first = 0;
                             round_up = true;
                         }
+                    }
+                    self.idx_first += 1;
+                    if self.idx_first >= self.buf.len() {
+                        self.idx_first = 0;
+                        round_up = true;
                     }
                 }
             }
@@ -42,12 +45,12 @@ impl<'a> RoundBuffer<'a> {
             let nbytes_rest = src.len() - nbytes_copy;
             let idx_write_end = nbytes_rest + 1;
             while self.idx_first < idx_write_end || self.idx_first >= self.idx_write {
-                self.idx_first += 1;
-                if self.idx_first >= self.buf.len() { self.idx_first = 0; }
                 while self.buf[self.idx_first] != 0x00 {
                     self.idx_first += 1;
                     if self.idx_first >= self.buf.len() { self.idx_first = 0; }
                 }
+                self.idx_first += 1;
+                if self.idx_first >= self.buf.len() { self.idx_first = 0; }
             }
             self.buf[self.idx_write..self.idx_write + nbytes_copy].copy_from_slice(&src[..nbytes_copy]);
             self.buf[0..nbytes_rest].copy_from_slice(&src[nbytes_copy..]);
