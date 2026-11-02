@@ -57,7 +57,6 @@ fn main() {
     round_buf.print();
     round_buf.add(&[b'8'; 17]).unwrap();
     round_buf.print();
-    return;
     for i_trial in 0..100 {
         let len = rng.random_range(0..32);
         for i in 0..len {
@@ -65,5 +64,8 @@ fn main() {
         }
         round_buf.add(&buf_write[..len]).unwrap();
         round_buf.print();
+    }
+    for (part1, part2) in round_buf.iter() {
+        println!("part1: {:x?}, part2: {:x?}", part1, part2);
     }
 }
