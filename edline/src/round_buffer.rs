@@ -1,57 +1,91 @@
 pub struct RoundBuffer<'a> {
     buf: &'a mut [u8],
-    idx_read: usize,
-    idx_head: usize,
+    idx_first: usize,
+    idx_last: usize,
     idx_write: usize,
+    buf_full: bool,
 }
 
 impl<'a> RoundBuffer<'a> {
     pub fn new(buf: &'a mut [u8]) -> Self {
-        Self { buf, idx_read: 0, idx_head: 0, idx_write: 0 }
+        Self { buf, idx_first: 0, idx_last: 0, idx_write: 0, buf_full: false }
     }
+
     pub fn capacity(&self) -> usize { self.buf.len() }
-    pub fn write(&mut self, src: &[u8]) -> Result<(), ()> {
+
+    pub fn add(&mut self, src: &[u8]) -> Result<(), ()> {
+        if src.len() + 1 > self.capacity() { return Err(()); }
         if self.idx_write >= self.buf.len() { self.idx_write = 0; }
-        let idx_write_end = self.idx_write + src.len();
+        let idx_write_end = self.idx_write + src.len() + 1;
         if idx_write_end <= self.buf.len() {
-            let mut round_up = false;
-            while self.idx_head < self.idx_write && !round_up {
-                self.idx_head += 1;
-                if self.idx_head >= self.buf.len() { self.idx_head = 0; }
-                while self.buf[self.idx_head] != 0 {
-                    self.idx_head += 1;
-                    if self.idx_head >= self.buf.len() {
-                        self.idx_head = 0;
-                        round_up = true;
+            if self.buf_full {
+                let mut round_up = false;
+                while self.idx_first < self.idx_write && !round_up {
+                    self.idx_first += 1;
+                    if self.idx_first >= self.buf.len() { self.idx_first = 0; }
+                    while self.buf[self.idx_first] != 0x00 {
+                        self.idx_first += 1;
+                        if self.idx_first >= self.buf.len() {
+                            self.idx_first = 0;
+                            round_up = true;
+                        }
                     }
                 }
             }
-            self.buf[self.idx_write..idx_write_end].copy_from_slice(src);
-            self.idx_write += src.len();
+            self.buf[self.idx_write..idx_write_end - 1].copy_from_slice(src);
+            self.buf[idx_write_end - 1] = 0x00;
+            self.idx_last = self.idx_write;
+            self.idx_write = idx_write_end;
         } else {
+            self.buf_full = true;
             let nbytes_copy = self.buf.len() - self.idx_write;
-            self.buf[self.idx_write..].copy_from_slice(&src[..nbytes_copy]);
             let nbytes_rest = src.len() - nbytes_copy;
-            self.buf[..nbytes_rest].copy_from_slice(&src[nbytes_copy..]);
-            self.idx_write = nbytes_rest;
+            let idx_write_end = nbytes_rest + 1;
+            while self.idx_first < idx_write_end || self.idx_first >= self.idx_write {
+                self.idx_first += 1;
+                if self.idx_first >= self.buf.len() { self.idx_first = 0; }
+                while self.buf[self.idx_first] != 0x00 {
+                    self.idx_first += 1;
+                    if self.idx_first >= self.buf.len() { self.idx_first = 0; }
+                }
+            }
+            self.buf[self.idx_write..self.idx_write + nbytes_copy].copy_from_slice(&src[..nbytes_copy]);
+            self.buf[0..nbytes_rest].copy_from_slice(&src[nbytes_copy..]);
+            self.buf[nbytes_rest] = 0x00;
+            self.idx_last = self.idx_write;
+            self.idx_write = idx_write_end;
         }
-        if self.idx_write >= self.buf.len() { self.idx_write = 0; }
-        self.buf[self.idx_write] = 0;
-        self.idx_write += 1;
         Ok(())
     }
-    pub fn read(&mut self, dst: &mut [u8]) -> Result<(), ()> {
+
+    pub fn print(&self) {
+        const NCOLS: usize = 16;
+        println!("first:0x{:04x} last:0x{:04x} write:0x{:04x}", self.idx_first, self.idx_last, self.idx_write);
         let mut idx = 0;
-        let mut bytes_read = 0;
-        while bytes_read < dst.len() {
-            let data = self.buf[self.idx_read];
-            if data == 0 { break; }
-            dst[idx] = data;
-            idx += 1;
-            self.idx_read += 1;
-            bytes_read += 1;
-            if self.idx_read >= self.buf.len() { self.idx_read = 0; }
+        for chunk in self.buf.chunks(NCOLS) {
+            for byte in chunk {
+                print!("{:02x} ", byte);
+            }
+            for _ in 0..(NCOLS - chunk.len()) {
+                print!("   ");
+            }
+            for byte in chunk {
+                if *byte >= 0x20 && *byte <= 0x7e {
+                    print!("{}", *byte as char);
+                } else {
+                    print!(".");
+                }
+            }
+            println!();
+            for _ in 0..chunk.len() {
+                let mut n = 0;
+                if idx == self.idx_first { print!("F"); n += 1;}
+                if idx == self.idx_last { print!("L"); n += 1; }
+                if idx == self.idx_write { print!("W"); n += 1; }
+                for _ in n..3 { print!(" "); }
+                idx += 1;
+            }
+            println!();
         }
-        Ok(())
     }
 }
