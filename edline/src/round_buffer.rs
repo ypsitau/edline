@@ -16,7 +16,6 @@ impl<'a> RoundBuffer<'a> {
     pub fn is_empty(&self) -> bool { self.nitems == 0 }
     pub fn count(&self) -> usize { self.nitems }
     pub fn add(&mut self, src: &[u8]) -> Result<(), ()> {
-        println!("Adding src of length: {}", src.len());
         if src.len() + 1 > self.capacity() { return Err(()); }
         let idx_write_end = self.idx_write + src.len() + 1;
         if idx_write_end <= self.buf.len() {
@@ -30,7 +29,6 @@ impl<'a> RoundBuffer<'a> {
                     idx += 1;
                     if idx >= self.buf.len() { idx = 0; }
                     self.idx_first = idx;
-                    println!("nitems: {}", self.nitems);
                     self.nitems -= 1;
                 }
             }
@@ -68,7 +66,8 @@ impl<'a> RoundBuffer<'a> {
         Ok(())
     }
 
-    pub fn print(&self) {
+    #[cfg(feature = "std")]
+    pub fn print_buf(&self) {
         const NCOLS: usize = 16;
         println!("first:0x{:04x} last:0x{:04x} write:0x{:04x} count:{}",
             self.idx_first, self.idx_last, self.idx_write, self.count());
@@ -97,6 +96,13 @@ impl<'a> RoundBuffer<'a> {
                 idx += 1;
             }
             println!();
+        }
+    }
+
+    #[cfg(feature = "std")]
+    pub fn print_items(&self) {
+        for (first, second) in self.iter() {
+            println!("(\"{}\", \"{}\")", str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
         }
     }
 

@@ -9,3 +9,7 @@ heapless = { workspace = true }
 static_cell = { workspace = true }
 serkey = { workspace = true }
 unicode-width = { workspace = true }
+
+[features]
+default = []
+std = []
