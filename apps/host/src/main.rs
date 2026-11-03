@@ -34,35 +34,35 @@ fn main() {
     let mut buf_write = [0u8; 64];
     let mut buf = [0u8; 64];
     let mut round_buf = edline::RoundBuffer::new(&mut buf);
-    round_buf.print_buf(); round_buf.print_items();
+    round_buf.print_buf(); round_buf.print_items_forward(); round_buf.print_items_backward();
     round_buf.add(&[b'0'; 17]).unwrap();
-    round_buf.print_buf(); round_buf.print_items();
+    round_buf.print_buf(); round_buf.print_items_forward(); round_buf.print_items_backward();
     round_buf.add(&[b'1'; 17]).unwrap();
-    round_buf.print_buf(); round_buf.print_items();
+    round_buf.print_buf(); round_buf.print_items_forward(); round_buf.print_items_backward();
     round_buf.add(&[b'2'; 17]).unwrap();
-    round_buf.print_buf(); round_buf.print_items();
+    round_buf.print_buf(); round_buf.print_items_forward(); round_buf.print_items_backward();
     round_buf.add(&[b'3'; 17]).unwrap();
-    round_buf.print_buf(); round_buf.print_items();
+    round_buf.print_buf(); round_buf.print_items_forward(); round_buf.print_items_backward();
     round_buf.add(&[b'4'; 17]).unwrap();
-    round_buf.print_buf(); round_buf.print_items();
+    round_buf.print_buf(); round_buf.print_items_forward(); round_buf.print_items_backward();
     round_buf.add(&[0; 0]).unwrap();
-    round_buf.print_buf(); round_buf.print_items();
+    round_buf.print_buf(); round_buf.print_items_forward(); round_buf.print_items_backward();
     round_buf.add(&[0; 0]).unwrap();
-    round_buf.print_buf(); round_buf.print_items();
+    round_buf.print_buf(); round_buf.print_items_forward(); round_buf.print_items_backward();
     round_buf.add(&[b'5'; 17]).unwrap();
-    round_buf.print_buf(); round_buf.print_items();
+    round_buf.print_buf(); round_buf.print_items_forward(); round_buf.print_items_backward();
     round_buf.add(&[b'6'; 17]).unwrap();
-    round_buf.print_buf(); round_buf.print_items();
+    round_buf.print_buf(); round_buf.print_items_forward(); round_buf.print_items_backward();
     round_buf.add(&[b'7'; 17]).unwrap();
-    round_buf.print_buf(); round_buf.print_items();
+    round_buf.print_buf(); round_buf.print_items_forward(); round_buf.print_items_backward();
     round_buf.add(&[b'8'; 17]).unwrap();
-    round_buf.print_buf(); round_buf.print_items();
+    round_buf.print_buf(); round_buf.print_items_forward(); round_buf.print_items_backward();
     for i_trial in 0..100 {
         let len = rng.random_range(0..32);
         for i in 0..len {
             buf_write[i] = b'A' + (i_trial % 26) as u8;
         }
         round_buf.add(&buf_write[..len]).unwrap();
-        round_buf.print_buf(); round_buf.print_items();
+        round_buf.print_buf(); round_buf.print_items_forward(); round_buf.print_items_backward();
     }
 }
