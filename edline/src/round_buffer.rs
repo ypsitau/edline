@@ -21,16 +21,14 @@ impl<'a> RoundBuffer<'a> {
         let idx_write_end = self.idx_write + src.len() + 1;
         if idx_write_end <= self.buf.len() {
             if self.buf_full {
-                let mut round_up = false;
-                // *****************************************
-                while self.idx_first < idx_write_end && !round_up {
+                while self.idx_write <= self.idx_first && self.idx_first < idx_write_end && self.nitems > 0 {
                     let mut idx = self.idx_first;
                     while self.buf[idx] != 0x00 {
                         idx += 1;
-                        if idx >= self.buf.len() { idx = 0; round_up = true; }
+                        if idx >= self.buf.len() { idx = 0; }
                     }
                     idx += 1;
-                    if idx >= self.buf.len() { idx = 0; round_up = true; }
+                    if idx >= self.buf.len() { idx = 0; }
                     self.idx_first = idx;
                     println!("nitems: {}", self.nitems);
                     self.nitems -= 1;
@@ -39,6 +37,7 @@ impl<'a> RoundBuffer<'a> {
             self.buf[self.idx_write..idx_write_end - 1].copy_from_slice(src);
             self.buf[idx_write_end - 1] = 0x00;
             self.idx_last = self.idx_write;
+            if self.nitems == 0 { self.idx_first = self.idx_write; }
             self.idx_write = idx_write_end;
             self.nitems += 1;
         } else {
@@ -46,7 +45,7 @@ impl<'a> RoundBuffer<'a> {
             let nbytes_copy = self.buf.len() - self.idx_write;
             let nbytes_rest = src.len() - nbytes_copy;
             let idx_write_end = nbytes_rest + 1;
-            while self.idx_first < idx_write_end || self.idx_first >= self.idx_write {
+            while (self.idx_first < idx_write_end || self.idx_write <= self.idx_first) && self.nitems > 0 {
                 let mut idx = self.idx_first;
                 while self.buf[idx] != 0x00 {
                     idx += 1;
@@ -61,6 +60,7 @@ impl<'a> RoundBuffer<'a> {
             self.buf[0..nbytes_rest].copy_from_slice(&src[nbytes_copy..]);
             self.buf[nbytes_rest] = 0x00;
             self.idx_last = self.idx_write;
+            if self.nitems == 0 { self.idx_first = self.idx_write; }
             self.idx_write = idx_write_end;
             self.nitems += 1;
         }
