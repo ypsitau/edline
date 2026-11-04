@@ -145,7 +145,9 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     }
 
     pub async fn enter(&mut self) {
-        self.history_buf.push(&self.line_buf[..self.ibyte_end]).unwrap();
+        if self.ibyte_end > 0 {
+            self.history_buf.push(&self.line_buf[..self.ibyte_end]).unwrap();
+        }
         self.output.new_line().await;
         self.ibyte_cur = 0;
         self.ibyte_end = 0;
