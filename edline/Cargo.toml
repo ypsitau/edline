@@ -12,4 +12,3 @@ unicode-width = { workspace = true }
 
 [features]
 default = []
-std = []

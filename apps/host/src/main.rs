@@ -73,8 +73,10 @@ fn main() {
     print_report(&mut round_buf);
     round_buf.add(&[0; 0]).unwrap();
     print_report(&mut round_buf);
-    for i_trial in 0..100 {
-        let len = rng.random_range(0..32);
+    round_buf.add(&[b'#'; 63]).unwrap();
+    print_report(&mut round_buf);
+    for i_trial in 0..1000 {
+        let len = rng.random_range(0..63);
         for i in 0..len {
             buf_write[i] = b'A' + (i_trial % 26) as u8;
         }
