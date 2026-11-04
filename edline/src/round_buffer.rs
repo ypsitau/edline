@@ -14,8 +14,19 @@ impl<'a> RoundBuffer<'a> {
     }
 
     pub fn capacity(&self) -> usize { self.buf.len() }
+
     pub fn is_empty(&self) -> bool { self.nitems == 0 }
+
+    pub fn buf(&self) -> &[u8] { self.buf }
+
+    pub fn idx_top(&self) -> usize { self.idx_top }
+
+    pub fn idx_bottom(&self) -> usize { self.idx_bottom }
+
+    pub fn idx_write(&self) -> usize { self.idx_write }
+
     pub fn count(&self) -> usize { self.nitems }
+
     pub fn add(&mut self, src: &[u8]) -> Result<(), ()> {
         if src.len() + 1 > self.capacity() { return Err(()); }
         self.idx_cursor = usize::MAX;
@@ -95,9 +106,9 @@ impl<'a> RoundBuffer<'a> {
             }
             idx
         };
-        let mut last_item = false;
+        let last_item: bool;
         if backward {
-            last_item = (idx_start == self.idx_top);
+            last_item = idx_start == self.idx_top;
             if !last_item {
                 let mut idx = idx_start;
                 idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
@@ -108,7 +119,7 @@ impl<'a> RoundBuffer<'a> {
                 }
             }
         } else {
-            last_item = (idx_start == self.idx_bottom);
+            last_item = idx_start == self.idx_bottom;
             if !last_item {
                 let mut idx = idx_end + 1;
                 if idx >= self.buf.len() { idx = 0; }
@@ -123,98 +134,4 @@ impl<'a> RoundBuffer<'a> {
             Some((&self.buf[idx_start..idx_end], &self.buf[0..0], last_item))
         }
     }
-
-    #[cfg(feature = "std")]
-    pub fn print_buf(&self) {
-        const NCOLS: usize = 16;
-        println!("first:0x{:04x} last:0x{:04x} write:0x{:04x} count:{}",
-            self.idx_top, self.idx_bottom, self.idx_write, self.count());
-        let mut idx = 0;
-        for chunk in self.buf.chunks(NCOLS) {
-            for byte in chunk {
-                print!("{:02x} ", byte);
-            }
-            for _ in 0..(NCOLS - chunk.len()) {
-                print!("   ");
-            }
-            for byte in chunk {
-                if *byte >= 0x20 && *byte <= 0x7e {
-                    print!("{}", *byte as char);
-                } else {
-                    print!(".");
-                }
-            }
-            println!();
-            for _ in 0..chunk.len() {
-                let mut n = 0;
-                if idx == self.idx_top { print!("F"); n += 1;}
-                if idx == self.idx_bottom { print!("L"); n += 1; }
-                if idx == self.idx_write { print!("W"); n += 1; }
-                for _ in n..3 { print!(" "); }
-                idx += 1;
-            }
-            println!();
-        }
-    }
-
-    #[cfg(feature = "std")]
-    pub fn print_items_forward(&mut self) {
-        self.reset_cursor();
-        while let Some((first, second, last_item)) = self.move_cursor_forward() {
-            println!("(\"{}\", \"{}\")", str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
-            if last_item { break; }
-        }
-    }
-
-    #[cfg(feature = "std")]
-    pub fn print_items_backward(&mut self) {
-        self.reset_cursor();
-        while let Some((first, second, last_item)) = self.move_cursor_backward() {
-            println!("(\"{}\", \"{}\")", str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
-            if last_item { break; }
-        }
-    }
 }
-
-/*
-pub struct Iterator<'a> {
-    round_buf: &'a RoundBuffer<'a>,
-    idx: usize,
-    iitem: usize,
-}
-
-impl<'a> Iterator<'a> {
-    pub fn new(round_buf: &'a RoundBuffer<'a>) -> Self {
-        Self { round_buf, idx: round_buf.idx_first, iitem: 0 }
-    }
-}
-
-impl<'a> core::iter::Iterator for Iterator<'a> {
-    type Item = (&'a [u8], &'a [u8]);
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.iitem == self.round_buf.count() { return None; }
-        let idx_start = self.idx;
-        let buf = &self.round_buf.buf;
-        let mut idx = idx_start;
-        while buf[idx] != 0x00 {
-            idx += 1;
-            if idx >= buf.len() { idx = 0; }
-            assert!(idx != idx_start, "Failed to find null terminator in buffer");
-        }
-        let idx_end = idx;
-        idx += 1;
-        if idx >= buf.len() { idx = 0; }
-        
-        self.idx = idx;
-        
-        self.iitem += 1;
-        if idx_end == 0 {
-            Some((&buf[idx_start..], &buf[0..0]))
-        } else if idx_end < idx_start {
-            Some((&buf[idx_start..], &buf[..idx_end]))
-        } else {
-            Some((&buf[idx_start..idx_end], &buf[0..0]))
-        }
-    }
-}
-*/
