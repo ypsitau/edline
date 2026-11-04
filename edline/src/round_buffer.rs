@@ -9,8 +9,10 @@ pub struct RoundBuffer<'a> {
 }
 
 impl<'a> RoundBuffer<'a> {
+    const IDX_NONE: usize = usize::MAX;
+
     pub fn new(buf: &'a mut [u8]) -> Self {
-        Self { buf, idx_top: 0, idx_bottom: 0, idx_write: 0, idx_cursor: usize::MAX, buf_full: false, nitems: 0 }
+        Self { buf, idx_top: 0, idx_bottom: 0, idx_write: 0, idx_cursor: Self::IDX_NONE, buf_full: false, nitems: 0 }
     }
 
     pub fn capacity(&self) -> usize { self.buf.len() }
@@ -29,7 +31,7 @@ impl<'a> RoundBuffer<'a> {
 
     pub fn push(&mut self, src: &[u8]) -> Result<(), ()> {
         if src.len() + 1 > self.capacity() { return Err(()); }
-        self.idx_cursor = usize::MAX;
+        self.idx_cursor = Self::IDX_NONE;
         let idx_write_end = self.idx_write + src.len() + 1;
         if idx_write_end <= self.buf.len() {
             if self.buf_full {
@@ -80,7 +82,7 @@ impl<'a> RoundBuffer<'a> {
     }
 
     pub fn reset_cursor(&mut self) {
-        self.idx_cursor = usize::MAX;
+        self.idx_cursor = Self::IDX_NONE;
     }
 
     pub fn move_cursor_forward(&mut self) -> Option<(&[u8], &[u8], bool)> {
@@ -92,7 +94,7 @@ impl<'a> RoundBuffer<'a> {
     }
 
     pub fn move_cursor(&mut self, backward: bool) -> Option<(&[u8], &[u8], bool)> {
-        if self.idx_cursor == usize::MAX {
+        if self.idx_cursor == Self::IDX_NONE {
             if self.is_empty() { return None; }
             self.idx_cursor = if backward { self.idx_bottom } else { self.idx_top };
         }

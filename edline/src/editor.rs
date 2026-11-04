@@ -146,7 +146,17 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
 
     pub async fn enter(&mut self) {
         if self.ibyte_end > 0 {
-            self.history_buf.push(&self.line_buf[..self.ibyte_end]).unwrap();
+            let mut skip_push = false;
+            self.history_buf.reset_cursor();
+            if let Some((first, second, _)) = self.history_buf.move_cursor_backward() {
+                skip_push =
+                    self.ibyte_end == first.len() + second.len() &&
+                    self.line_buf[..first.len()].cmp(first) == core::cmp::Ordering::Equal &&
+                    self.line_buf[first.len()..self.ibyte_end].cmp(second) == core::cmp::Ordering::Equal;
+            }
+            if !skip_push {
+                self.history_buf.push(&self.line_buf[..self.ibyte_end]).unwrap();
+            }
         }
         self.output.new_line().await;
         self.ibyte_cur = 0;
@@ -154,27 +164,29 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     }
 
     pub async fn recall_history_prev(&mut self) {
-        if let Some((first, second, last_item)) = self.history_buf.move_cursor_backward() {
+        if let Some((first, second, _)) = self.history_buf.move_cursor_backward() {
             self.line_buf[..first.len()].copy_from_slice(first);
             self.line_buf[first.len()..first.len() + second.len()].copy_from_slice(second);
             self.ibyte_end = first.len() + second.len();
             self.ibyte_cur = self.ibyte_end;
-            self.output.restore_cursor_pos().await;
-            self.output.write(&self.line_buf[..self.ibyte_end]).await;
-            self.output.delete_to_line_end().await;
+            self.write_buf_whole().await;
         }
     }
 
     pub async fn recall_history_next(&mut self) {
-        if let Some((first, second, last_item)) = self.history_buf.move_cursor_forward() {
+        if let Some((first, second, _)) = self.history_buf.move_cursor_forward() {
             self.line_buf[..first.len()].copy_from_slice(first);
             self.line_buf[first.len()..first.len() + second.len()].copy_from_slice(second);
             self.ibyte_end = first.len() + second.len();
             self.ibyte_cur = self.ibyte_end;
-            self.output.restore_cursor_pos().await;
-            self.output.write(&self.line_buf[..self.ibyte_end]).await;
-            self.output.delete_to_line_end().await;
+            self.write_buf_whole().await;
         }
+    }
+
+    pub async fn write_buf_whole(&mut self) {
+        self.output.restore_cursor_pos().await;
+        self.output.write(&self.line_buf[..self.ibyte_end]).await;
+        self.output.delete_to_line_end().await;
     }
 
     pub async fn insert_char(&mut self, c: char) {
