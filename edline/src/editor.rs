@@ -119,8 +119,8 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             serkey::Key::CookedCtrl(serkey::Ctrl::H) => { self.backspace().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::J) => { self.enter().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::K) => { self.delete_to_line_end().await; }
-            serkey::Key::CookedCtrl(serkey::Ctrl::N) => {}
-            serkey::Key::CookedCtrl(serkey::Ctrl::P) => {}
+            serkey::Key::CookedCtrl(serkey::Ctrl::N) => { self.recall_history_next().await; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::P) => { self.recall_history_prev().await; }
             serkey::Key::A(attr) if attr.is_ctrl() => { self.move_cursor_to_line_start().await; }
             serkey::Key::B(attr) if attr.is_ctrl() => { self.move_cursor_left().await; }
             serkey::Key::D(attr) if attr.is_ctrl() => { self.delete_char().await; }
@@ -129,11 +129,13 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             serkey::Key::H(attr) if attr.is_ctrl() => { self.backspace().await; }
             serkey::Key::J(attr) if attr.is_ctrl() => { self.enter().await; }
             serkey::Key::K(attr) if attr.is_ctrl() => { self.delete_to_line_end().await; }
-            serkey::Key::N(attr) if attr.is_ctrl() => {}
-            serkey::Key::P(attr) if attr.is_ctrl() => {}
+            serkey::Key::N(attr) if attr.is_ctrl() => { self.recall_history_next().await; }
+            serkey::Key::P(attr) if attr.is_ctrl() => { self.recall_history_prev().await; }
             serkey::Key::Enter(attr) if attr.is_none() => { self.enter().await; }
             serkey::Key::Delete(attr) if attr.is_none() => { self.delete_char().await; }
             serkey::Key::Backspace(attr) if attr.is_none() => { self.backspace().await; }
+            serkey::Key::Up(attr) if attr.is_none() => { self.recall_history_prev().await; }
+            serkey::Key::Down(attr) if attr.is_none() => { self.recall_history_next().await; }
             serkey::Key::Left(attr) if attr.is_none() => { self.move_cursor_left().await; }
             serkey::Key::Right(attr) if attr.is_none() => { self.move_cursor_right().await; }
             serkey::Key::Home(attr) if attr.is_none() => { self.move_cursor_to_line_start().await; }
@@ -147,6 +149,30 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         self.output.new_line().await;
         self.ibyte_cur = 0;
         self.ibyte_end = 0;
+    }
+
+    pub async fn recall_history_prev(&mut self) {
+        if let Some((first, second, last_item)) = self.history_buf.move_cursor_backward() {
+            self.line_buf[..first.len()].copy_from_slice(first);
+            self.line_buf[first.len()..first.len() + second.len()].copy_from_slice(second);
+            self.ibyte_end = first.len() + second.len();
+            self.ibyte_cur = self.ibyte_end;
+            self.output.restore_cursor_pos().await;
+            self.output.write(&self.line_buf[..self.ibyte_end]).await;
+            self.output.delete_to_line_end().await;
+        }
+    }
+
+    pub async fn recall_history_next(&mut self) {
+        if let Some((first, second, last_item)) = self.history_buf.move_cursor_forward() {
+            self.line_buf[..first.len()].copy_from_slice(first);
+            self.line_buf[first.len()..first.len() + second.len()].copy_from_slice(second);
+            self.ibyte_end = first.len() + second.len();
+            self.ibyte_cur = self.ibyte_end;
+            self.output.restore_cursor_pos().await;
+            self.output.write(&self.line_buf[..self.ibyte_end]).await;
+            self.output.delete_to_line_end().await;
+        }
     }
 
     pub async fn insert_char(&mut self, c: char) {
