@@ -3,11 +3,13 @@ use core::future::Future;
 use embedded_io_async as io_async;
 use heapless::String;
 use static_cell::StaticCell;
+use crate::round_buffer::RoundBuffer;
 
 pub trait Output {
     type Error;
 
     fn write(&mut self, data: &[u8]) -> impl Future<Output = ()>;
+    fn new_line(&mut self) -> impl Future<Output = ()>; 
     fn save_cursor_pos(&mut self) -> impl Future<Output = ()>;
     fn restore_cursor_pos(&mut self) -> impl Future<Output = ()>;
     fn move_cursor_left_n(&mut self, n: usize) -> impl Future<Output = ()>;
@@ -21,6 +23,7 @@ impl Output for DummyOutput {
     type Error = ();
 
     async fn write(&mut self, _data: &[u8]) {}
+    async fn new_line(&mut self) {}
     async fn save_cursor_pos(&mut self) {}
     async fn restore_cursor_pos(&mut self) {}
     async fn move_cursor_left_n(&mut self, _n: usize) {}
@@ -43,6 +46,11 @@ impl<Writer: io_async::Write> Output for SerialOutput<Writer> {
 
     async fn write(&mut self, data: &[u8]) {
         self.writer.write_all(data).await.unwrap();
+        self.writer.flush().await.unwrap();
+    }
+
+    async fn new_line(&mut self) {
+        self.writer.write_all(b"\r\n").await.unwrap();
         self.writer.flush().await.unwrap();
     }
 
@@ -79,7 +87,7 @@ impl<Writer: io_async::Write> Output for SerialOutput<Writer> {
 pub struct Editor<'a, Output> {
     output: Output,
     line_buf: &'a mut [u8],
-    history_buf: &'a mut [u8],
+    history_buf: RoundBuffer<'a>,
     ibyte_cur: usize,
     ibyte_end: usize,
 }
@@ -89,7 +97,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         Self {
             output,
             line_buf,
-            history_buf,
+            history_buf: RoundBuffer::new(history_buf),
             ibyte_cur: 0,
             ibyte_end: 0,
         }
@@ -109,7 +117,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             serkey::Key::CookedCtrl(serkey::Ctrl::E) => { self.move_cursor_to_line_end().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::F) => { self.move_cursor_right().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::H) => { self.backspace().await; }
-            serkey::Key::CookedCtrl(serkey::Ctrl::J) => {}
+            serkey::Key::CookedCtrl(serkey::Ctrl::J) => { self.enter().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::K) => { self.delete_to_line_end().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::N) => {}
             serkey::Key::CookedCtrl(serkey::Ctrl::P) => {}
@@ -119,10 +127,11 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             serkey::Key::E(attr) if attr.is_ctrl() => { self.move_cursor_to_line_end().await; }
             serkey::Key::F(attr) if attr.is_ctrl() => { self.move_cursor_right().await; }
             serkey::Key::H(attr) if attr.is_ctrl() => { self.backspace().await; }
-            serkey::Key::J(attr) if attr.is_ctrl() => {}
+            serkey::Key::J(attr) if attr.is_ctrl() => { self.enter().await; }
             serkey::Key::K(attr) if attr.is_ctrl() => { self.delete_to_line_end().await; }
             serkey::Key::N(attr) if attr.is_ctrl() => {}
             serkey::Key::P(attr) if attr.is_ctrl() => {}
+            serkey::Key::Enter(attr) if attr.is_none() => { self.enter().await; }
             serkey::Key::Delete(attr) if attr.is_none() => { self.delete_char().await; }
             serkey::Key::Backspace(attr) if attr.is_none() => { self.backspace().await; }
             serkey::Key::Left(attr) if attr.is_none() => { self.move_cursor_left().await; }
@@ -131,6 +140,13 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             serkey::Key::End(attr) if attr.is_none() => { self.move_cursor_to_line_end().await; }
             _ => {}
         }
+    }
+
+    pub async fn enter(&mut self) {
+        self.history_buf.push(&self.line_buf[..self.ibyte_end]).unwrap();
+        self.output.new_line().await;
+        self.ibyte_cur = 0;
+        self.ibyte_end = 0;
     }
 
     pub async fn insert_char(&mut self, c: char) {

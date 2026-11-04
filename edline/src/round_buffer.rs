@@ -27,7 +27,7 @@ impl<'a> RoundBuffer<'a> {
 
     pub fn count(&self) -> usize { self.nitems }
 
-    pub fn add(&mut self, src: &[u8]) -> Result<(), ()> {
+    pub fn push(&mut self, src: &[u8]) -> Result<(), ()> {
         if src.len() + 1 > self.capacity() { return Err(()); }
         self.idx_cursor = usize::MAX;
         let idx_write_end = self.idx_write + src.len() + 1;
