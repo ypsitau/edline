@@ -3,7 +3,9 @@ resolver = "2"
 members = [
     "edline",
     "apps/host",
+    "apps/host-round-buffer",
 ]
+default-members = ["apps/host", "apps/host-round-buffer"]
 
 [workspace.dependencies]
 edline = { path = "edline" }

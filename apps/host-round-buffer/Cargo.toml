@@ -1,0 +1,9 @@
+[package]
+name = "host-round-buffer"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+edline = { workspace = true }
+rand = { version = "0.10.3" }

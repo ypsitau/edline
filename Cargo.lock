@@ -198,6 +198,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "host"
+version = "0.1.0"
+dependencies = [
+ "crossterm",
+ "edline",
+ "embedded-io",
+ "embedded-io-adapters",
+ "embedded-io-async",
+ "heapless",
+ "serkey",
+ "static_cell",
+ "tokio",
+ "windows-sys",
+]
+
+[[package]]
+name = "host-round-buffer"
+version = "0.1.0"
+dependencies = [
+ "edline",
+ "rand",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.191"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -229,23 +253,6 @@ name = "log"
 version = "0.4.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
-
-[[package]]
-name = "main"
-version = "0.1.0"
-dependencies = [
- "crossterm",
- "edline",
- "embedded-io",
- "embedded-io-adapters",
- "embedded-io-async",
- "heapless",
- "rand",
- "serkey",
- "static_cell",
- "tokio",
- "windows-sys",
-]
 
 [[package]]
 name = "mio"
