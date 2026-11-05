@@ -84,8 +84,8 @@ pub fn print_buf(round_buf: &edline::RoundBuffer) {
         println!();
         for _ in 0..chunk.len() {
             let mut n = 0;
-            if idx == round_buf.idx_top() { print!("F"); n += 1;}
-            if idx == round_buf.idx_bottom() { print!("L"); n += 1; }
+            if idx == round_buf.idx_top() { print!("T"); n += 1;}
+            if idx == round_buf.idx_bottom() { print!("B"); n += 1; }
             if idx == round_buf.idx_write() { print!("W"); n += 1; }
             for _ in n..3 { print!(" "); }
             idx += 1;

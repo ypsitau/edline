@@ -107,8 +107,10 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         self.output.save_cursor_pos().await;
     }
 
-    pub async fn process_key(&mut self, key: serkey::Key) {
+    pub async fn process_key(&mut self, key: serkey::Key, result_buf: &mut [u8], nbytes: &mut usize) -> bool {
         //println!("Received key: {:?}", key);
+        let mut entered = false;
+        let mut history_operation = false;
         match key {
             serkey::Key::CookedChar(c) => { self.insert_char(c).await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::A) => { self.move_cursor_to_line_start().await; }
@@ -117,50 +119,78 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             serkey::Key::CookedCtrl(serkey::Ctrl::E) => { self.move_cursor_to_line_end().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::F) => { self.move_cursor_right().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::H) => { self.backspace().await; }
-            serkey::Key::CookedCtrl(serkey::Ctrl::J) => { self.enter().await; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::J) => { self.enter(result_buf, nbytes).await; entered = true; }
             serkey::Key::CookedCtrl(serkey::Ctrl::K) => { self.delete_to_line_end().await; }
-            serkey::Key::CookedCtrl(serkey::Ctrl::N) => { self.recall_history_next().await; }
-            serkey::Key::CookedCtrl(serkey::Ctrl::P) => { self.recall_history_prev().await; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::N) => { self.recall_history_next().await; history_operation = true; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::P) => { self.recall_history_prev().await; history_operation = true; }
             serkey::Key::A(attr) if attr.is_ctrl() => { self.move_cursor_to_line_start().await; }
             serkey::Key::B(attr) if attr.is_ctrl() => { self.move_cursor_left().await; }
             serkey::Key::D(attr) if attr.is_ctrl() => { self.delete_char().await; }
             serkey::Key::E(attr) if attr.is_ctrl() => { self.move_cursor_to_line_end().await; }
             serkey::Key::F(attr) if attr.is_ctrl() => { self.move_cursor_right().await; }
             serkey::Key::H(attr) if attr.is_ctrl() => { self.backspace().await; }
-            serkey::Key::J(attr) if attr.is_ctrl() => { self.enter().await; }
+            serkey::Key::J(attr) if attr.is_ctrl() => { self.enter(result_buf, nbytes).await; entered = true; }
             serkey::Key::K(attr) if attr.is_ctrl() => { self.delete_to_line_end().await; }
-            serkey::Key::N(attr) if attr.is_ctrl() => { self.recall_history_next().await; }
-            serkey::Key::P(attr) if attr.is_ctrl() => { self.recall_history_prev().await; }
-            serkey::Key::Enter(attr) if attr.is_none() => { self.enter().await; }
+            serkey::Key::N(attr) if attr.is_ctrl() => { self.recall_history_next().await; history_operation = true; }
+            serkey::Key::P(attr) if attr.is_ctrl() => { self.recall_history_prev().await; history_operation = true; }
+            serkey::Key::Enter(attr) if attr.is_none() => { self.enter(result_buf, nbytes).await; entered = true; }
             serkey::Key::Delete(attr) if attr.is_none() => { self.delete_char().await; }
             serkey::Key::Backspace(attr) if attr.is_none() => { self.backspace().await; }
-            serkey::Key::Up(attr) if attr.is_none() => { self.recall_history_prev().await; }
-            serkey::Key::Down(attr) if attr.is_none() => { self.recall_history_next().await; }
+            serkey::Key::Up(attr) if attr.is_none() => { self.recall_history_prev().await; history_operation = true; }
+            serkey::Key::Down(attr) if attr.is_none() => { self.recall_history_next().await; history_operation = true; }
             serkey::Key::Left(attr) if attr.is_none() => { self.move_cursor_left().await; }
             serkey::Key::Right(attr) if attr.is_none() => { self.move_cursor_right().await; }
             serkey::Key::Home(attr) if attr.is_none() => { self.move_cursor_to_line_start().await; }
             serkey::Key::End(attr) if attr.is_none() => { self.move_cursor_to_line_end().await; }
             _ => {}
         }
+        if !history_operation { self.history_buf.reset_cursor(); }
+        entered
     }
 
-    pub async fn enter(&mut self) {
-        if self.ibyte_end > 0 {
+    pub async fn write(&mut self, buf: &[u8]) {
+        self.output.write(buf).await;
+    }
+
+    pub async fn enter(&mut self, result_buf: &mut [u8], nbytes: &mut usize) {
+        let line_buf_stripped = Self::strip(&self.line_buf[..self.ibyte_end]);
+        if !line_buf_stripped.is_empty() {
             let mut skip_push = false;
             self.history_buf.reset_cursor();
             if let Some((first, second, _)) = self.history_buf.move_cursor_backward() {
                 skip_push =
                     self.ibyte_end == first.len() + second.len() &&
-                    self.line_buf[..first.len()].cmp(first) == core::cmp::Ordering::Equal &&
-                    self.line_buf[first.len()..self.ibyte_end].cmp(second) == core::cmp::Ordering::Equal;
+                    line_buf_stripped[..first.len()].cmp(first) == core::cmp::Ordering::Equal &&
+                    line_buf_stripped[first.len()..self.ibyte_end].cmp(second) == core::cmp::Ordering::Equal;
             }
             if !skip_push {
-                self.history_buf.push(&self.line_buf[..self.ibyte_end]).unwrap();
+                self.history_buf.push(&line_buf_stripped).unwrap();
             }
         }
+        let nbytes_copy = line_buf_stripped.len().min(result_buf.len());
+        result_buf[..nbytes_copy].copy_from_slice(&line_buf_stripped[..nbytes_copy]);
+        *nbytes = nbytes_copy;
         self.output.new_line().await;
+        self.output.save_cursor_pos().await;
         self.ibyte_cur = 0;
         self.ibyte_end = 0;
+    }
+
+    fn strip(buf: &[u8]) -> &[u8] {
+        fn is_skippable(byte: u8) -> bool {
+            byte == 0x00 || byte == b' ' || byte == b'\t' || byte == b'\n' || byte == b'\r'
+        }
+        let idx_start = {
+            let mut idx = 0;
+            while idx < buf.len() && is_skippable(buf[idx]) { idx += 1; }
+            idx
+        };
+        let idx_end = {
+            let mut idx = buf.len();
+            while idx > 0 && is_skippable(buf[idx - 1]) { idx -= 1; }
+            idx
+        };
+        &buf[idx_start..idx_end]
     }
 
     pub async fn recall_history_prev(&mut self) {
@@ -313,7 +343,13 @@ pub async fn simple_task(mut writer: impl io_async::Write, mut reader: impl io_a
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
+    let result_buf = {
+        const BUFSIZE: usize = 128;
+        static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
+        STATIC_CELL.init([0u8; BUFSIZE])
+    };
     let mut editor = Editor::with_serial_output(writer, line_buf, history_buf);
+    let mut nbytes = 0;
     let mut serkey_reader = serkey::Reader::new();
     editor.start().await;
     loop {
@@ -321,7 +357,11 @@ pub async fn simple_task(mut writer: impl io_async::Write, mut reader: impl io_a
             if enable_break {
                 if let serkey::Key::CookedCtrl(serkey::Ctrl::C) = key { break; }
             }
-            editor.process_key(key).await;
+            if editor.process_key(key, result_buf, &mut nbytes).await {
+                editor.write(b"Result: ").await;
+                editor.write(&result_buf[..nbytes]).await;
+                editor.write(b"\r\n").await;
+            }
         }
     }
 }

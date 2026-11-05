@@ -1,3 +1,5 @@
+use heapless::index_map;
+
 pub struct RoundBuffer<'a> {
     buf: &'a mut [u8],
     idx_top: usize,
@@ -12,6 +14,7 @@ impl<'a> RoundBuffer<'a> {
     const IDX_NONE: usize = usize::MAX;
 
     pub fn new(buf: &'a mut [u8]) -> Self {
+        buf.fill(0x00);
         Self { buf, idx_top: 0, idx_bottom: 0, idx_write: 0, idx_cursor: Self::IDX_NONE, buf_full: false, nitems: 0 }
     }
 
@@ -86,54 +89,59 @@ impl<'a> RoundBuffer<'a> {
     }
 
     pub fn move_cursor_forward(&mut self) -> Option<(&[u8], &[u8], bool)> {
-        self.move_cursor(false)
+        if self.idx_cursor == Self::IDX_NONE {
+            if self.is_empty() { return None; }
+            self.idx_cursor = self.idx_top;
+        } else if self.idx_cursor != self.idx_bottom {
+            self.idx_cursor = {
+                let mut idx = self.idx_cursor;
+                while self.buf[idx] != 0x00 {
+                    idx = if idx + 1 < self.buf.len() { idx + 1 } else { 0 };
+                    assert!(idx != self.idx_cursor, "Failed to find null terminator in buffer");
+                }
+                if idx + 1 < self.buf.len() { idx + 1 } else { 0 }
+            };
+        }
+        self.get_item(self.idx_cursor, self.idx_cursor == self.idx_bottom)
     }
 
     pub fn move_cursor_backward(&mut self) -> Option<(&[u8], &[u8], bool)> {
-        self.move_cursor(true)
-    }
-
-    pub fn move_cursor(&mut self, backward: bool) -> Option<(&[u8], &[u8], bool)> {
         if self.idx_cursor == Self::IDX_NONE {
             if self.is_empty() { return None; }
-            self.idx_cursor = if backward { self.idx_bottom } else { self.idx_top };
+            self.idx_cursor = self.idx_bottom;
+        } else if self.idx_cursor != self.idx_top {
+            self.idx_cursor = {
+                let mut idx = self.idx_cursor;
+                idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
+                let mut idx_start;
+                loop {
+                    idx_start = idx;
+                    if idx_start == self.idx_top { break; }
+                    idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
+                    if self.buf[idx] == 0x00 { break; }
+                    assert!(idx != self.idx_cursor, "Failed to find null terminator in buffer");
+                }
+                idx_start
+            };
         }
-        let idx_start = self.idx_cursor;
+        self.get_item(self.idx_cursor, self.idx_cursor == self.idx_top)
+    }
+
+    fn get_item(&self, idx_item: usize, last_item: bool) -> Option<(&[u8], &[u8], bool)> {
         let idx_end = {
-            let mut idx = idx_start;
+            let mut idx = idx_item;
             while self.buf[idx] != 0x00 {
-                idx += 1;
-                if idx >= self.buf.len() { idx = 0; }
-                assert!(idx != idx_start, "Failed to find null terminator in buffer");
+                idx = if idx + 1 < self.buf.len() { idx + 1 } else { 0 };
+                assert!(idx != idx_item, "Failed to find null terminator in buffer");
             }
             idx
         };
-        let last_item: bool;
-        if backward {
-            last_item = idx_start == self.idx_top;
-            if !last_item {
-                let mut idx = idx_start;
-                idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
-                loop {
-                    self.idx_cursor = idx;
-                    idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
-                    if self.buf[idx] == 0x00 { break; }
-                }
-            }
-        } else {
-            last_item = idx_start == self.idx_bottom;
-            if !last_item {
-                let mut idx = idx_end + 1;
-                if idx >= self.buf.len() { idx = 0; }
-                self.idx_cursor = idx;
-            }
-        }
         if idx_end == 0 {
-            Some((&self.buf[idx_start..], &self.buf[0..0], last_item))
-        } else if idx_end < idx_start {
-            Some((&self.buf[idx_start..], &self.buf[..idx_end], last_item))
+            Some((&self.buf[idx_item..], &self.buf[0..0], last_item))
+        } else if idx_end < idx_item {
+            Some((&self.buf[idx_item..], &self.buf[..idx_end], last_item))
         } else {
-            Some((&self.buf[idx_start..idx_end], &self.buf[0..0], last_item))
+            Some((&self.buf[idx_item..idx_end], &self.buf[0..0], last_item))
         }
     }
 }
