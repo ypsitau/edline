@@ -5,6 +5,11 @@ use heapless::String;
 use static_cell::StaticCell;
 use crate::round_buffer::RoundBuffer;
 
+pub enum Event {
+    None,
+    Entered,
+}
+
 pub trait Output {
     type Error;
 
@@ -109,9 +114,9 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         self.output.save_cursor_pos().await;
     }
 
-    pub async fn process_key(&mut self, key: serkey::Key) -> bool {
+    pub async fn process_key(&mut self, key: serkey::Key) -> Event {
         //println!("Received key: {:?}", key);
-        let mut entered = false;
+        let mut event = Event::None;
         let mut history_operation = false;
         self.range_result = (0, 0);
         match key {
@@ -122,7 +127,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             serkey::Key::CookedCtrl(serkey::Ctrl::E) => { self.move_cursor_to_line_end().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::F) => { self.move_cursor_right().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::H) => { self.backspace().await; }
-            serkey::Key::CookedCtrl(serkey::Ctrl::J) => { self.enter().await; entered = true; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::J) => { self.enter().await; event = Event::Entered; }
             serkey::Key::CookedCtrl(serkey::Ctrl::K) => { self.delete_to_line_end().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::N) => { self.recall_history_next().await; history_operation = true; }
             serkey::Key::CookedCtrl(serkey::Ctrl::P) => { self.recall_history_prev().await; history_operation = true; }
@@ -132,11 +137,11 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             serkey::Key::E(attr) if attr.is_ctrl() => { self.move_cursor_to_line_end().await; }
             serkey::Key::F(attr) if attr.is_ctrl() => { self.move_cursor_right().await; }
             serkey::Key::H(attr) if attr.is_ctrl() => { self.backspace().await; }
-            serkey::Key::J(attr) if attr.is_ctrl() => { self.enter().await; entered = true; }
+            serkey::Key::J(attr) if attr.is_ctrl() => { self.enter().await; event = Event::Entered; }
             serkey::Key::K(attr) if attr.is_ctrl() => { self.delete_to_line_end().await; }
             serkey::Key::N(attr) if attr.is_ctrl() => { self.recall_history_next().await; history_operation = true; }
             serkey::Key::P(attr) if attr.is_ctrl() => { self.recall_history_prev().await; history_operation = true; }
-            serkey::Key::Enter(attr) if attr.is_none() => { self.enter().await; entered = true; }
+            serkey::Key::Enter(attr) if attr.is_none() => { self.enter().await; event = Event::Entered; }
             serkey::Key::Delete(attr) if attr.is_none() => { self.delete_char().await; }
             serkey::Key::Backspace(attr) if attr.is_none() => { self.backspace().await; }
             serkey::Key::Up(attr) if attr.is_none() => { self.recall_history_prev().await; history_operation = true; }
@@ -148,7 +153,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             _ => {}
         }
         if !history_operation { self.history_buf.reset_cursor(); }
-        entered
+        event
     }
 
     pub fn get_result(&self, result_buf: &mut [u8]) -> usize {
@@ -365,11 +370,14 @@ pub async fn simple_task(mut writer: impl io_async::Write, mut reader: impl io_a
             if enable_break {
                 if let serkey::Key::CookedCtrl(serkey::Ctrl::C) = key { break; }
             }
-            if editor.process_key(key).await {
-                let nbytes = editor.get_result(result_buf);
-                editor.write(b"Result: ").await;
-                editor.write(&result_buf[..nbytes]).await;
-                editor.write(b"\r\n").await;
+            match editor.process_key(key).await {
+                Event::Entered => {
+                    let nbytes = editor.get_result(result_buf);
+                    editor.write(b"Result: ").await;
+                    editor.write(&result_buf[..nbytes]).await;
+                    editor.write(b"\r\n").await;
+                }
+                Event::None => {}
             }
         }
     }
