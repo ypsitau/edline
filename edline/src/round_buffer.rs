@@ -1,5 +1,3 @@
-use heapless::index_map;
-
 pub struct RoundBuffer<'a> {
     buf: &'a mut [u8],
     idx_top: usize,

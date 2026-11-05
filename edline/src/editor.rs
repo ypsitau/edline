@@ -15,8 +15,6 @@ pub trait Output {
 
     fn write(&mut self, data: &[u8]) -> impl Future<Output = ()>;
     fn new_line(&mut self) -> impl Future<Output = ()>; 
-    fn save_cursor_pos(&mut self) -> impl Future<Output = ()>;
-    fn restore_cursor_pos(&mut self) -> impl Future<Output = ()>;
     fn move_cursor_left_n(&mut self, n: usize) -> impl Future<Output = ()>;
     fn move_cursor_right_n(&mut self, n: usize) -> impl Future<Output = ()>;
     fn delete_to_line_end(&mut self) -> impl Future<Output = ()>;
@@ -29,8 +27,6 @@ impl Output for DummyOutput {
 
     async fn write(&mut self, _data: &[u8]) {}
     async fn new_line(&mut self) {}
-    async fn save_cursor_pos(&mut self) {}
-    async fn restore_cursor_pos(&mut self) {}
     async fn move_cursor_left_n(&mut self, _n: usize) {}
     async fn move_cursor_right_n(&mut self, _n: usize) {}
     async fn delete_to_line_end(&mut self) {}
@@ -59,28 +55,22 @@ impl<Writer: io_async::Write> Output for SerialOutput<Writer> {
         self.writer.flush().await.unwrap();
     }
 
-    async fn save_cursor_pos(&mut self) {
-        self.writer.write_all(b"\x1b7").await.unwrap();
-        self.writer.flush().await.unwrap();
-    }
-
-    async fn restore_cursor_pos(&mut self) {
-        self.writer.write_all(b"\x1b8").await.unwrap();
-        self.writer.flush().await.unwrap();
-    }
-
     async fn move_cursor_left_n(&mut self, n: usize) {
-        let mut sbuf = String::<64>::new();
-        write!(sbuf, "\x1b[{}D", n).unwrap();
-        self.writer.write_all(sbuf.as_bytes()).await.unwrap();
-        self.writer.flush().await.unwrap();
+        if n > 0 {
+            let mut sbuf = String::<64>::new();
+            write!(sbuf, "\x1b[{}D", n).unwrap();
+            self.writer.write_all(sbuf.as_bytes()).await.unwrap();
+            self.writer.flush().await.unwrap();
+        }
     }
 
     async fn move_cursor_right_n(&mut self, n: usize) {
-        let mut sbuf = String::<64>::new();
-        write!(sbuf, "\x1b[{}C", n).unwrap();
-        self.writer.write_all(sbuf.as_bytes()).await.unwrap();
-        self.writer.flush().await.unwrap();
+        if n > 0 {
+            let mut sbuf = String::<64>::new();
+            write!(sbuf, "\x1b[{}C", n).unwrap();
+            self.writer.write_all(sbuf.as_bytes()).await.unwrap();
+            self.writer.flush().await.unwrap();
+        }
     }
     
     async fn delete_to_line_end(&mut self) {
@@ -108,10 +98,6 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             idx_end: 0,
             range_result: (0, 0),
         }
-    }
-
-    pub async fn start(&mut self) {
-        self.output.save_cursor_pos().await;
     }
 
     pub async fn process_key(&mut self, key: serkey::Key) -> Event {
@@ -163,8 +149,8 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         nbytes_copy
     }
 
-    pub async fn write(&mut self, buf: &[u8]) {
-        self.output.write(buf).await;
+    pub async fn print(&mut self, s: &str) {
+        self.output.write(s.as_bytes()).await;
     }
 
     pub async fn enter(&mut self) {
@@ -185,7 +171,6 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         }
         self.range_result = (idx_start, idx_end);
         self.output.new_line().await;
-        self.output.save_cursor_pos().await;
         self.idx_cur = 0;
         self.idx_end = 0;
     }
@@ -208,29 +193,29 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     }
 
     pub async fn recall_history_prev(&mut self) {
+        let width = self.calc_width(0, self.idx_cur);
         if let Some((first, second, _)) = self.history_buf.move_cursor_backward() {
             self.line_buf[..first.len()].copy_from_slice(first);
             self.line_buf[first.len()..first.len() + second.len()].copy_from_slice(second);
             self.idx_end = first.len() + second.len();
             self.idx_cur = self.idx_end;
-            self.write_buf_whole().await;
+            self.output.move_cursor_left_n(width).await;
+            self.output.write(&self.line_buf[..self.idx_end]).await;
+            self.output.delete_to_line_end().await;
         }
     }
 
     pub async fn recall_history_next(&mut self) {
+        let width = self.calc_width(0, self.idx_cur);
         if let Some((first, second, _)) = self.history_buf.move_cursor_forward() {
             self.line_buf[..first.len()].copy_from_slice(first);
             self.line_buf[first.len()..first.len() + second.len()].copy_from_slice(second);
             self.idx_end = first.len() + second.len();
             self.idx_cur = self.idx_end;
-            self.write_buf_whole().await;
+            self.output.move_cursor_left_n(width).await;
+            self.output.write(&self.line_buf[..self.idx_end]).await;
+            self.output.delete_to_line_end().await;
         }
-    }
-
-    pub async fn write_buf_whole(&mut self) {
-        self.output.restore_cursor_pos().await;
-        self.output.write(&self.line_buf[..self.idx_end]).await;
-        self.output.delete_to_line_end().await;
     }
 
     pub async fn insert_char(&mut self, c: char) {
@@ -364,7 +349,8 @@ pub async fn simple_task(mut writer: impl io_async::Write, mut reader: impl io_a
     };
     let mut editor = Editor::with_serial_output(writer, line_buf, history_buf);
     let mut serkey_reader = serkey::Reader::new();
-    editor.start().await;
+    let prompt = "> ";
+    editor.print(prompt).await;
     loop {
         if let Ok(key) = serkey_reader.read_key(&mut reader).await {
             if enable_break {
@@ -373,9 +359,10 @@ pub async fn simple_task(mut writer: impl io_async::Write, mut reader: impl io_a
             match editor.process_key(key).await {
                 Event::Entered => {
                     let nbytes = editor.get_result(result_buf);
-                    editor.write(b"Result: ").await;
-                    editor.write(&result_buf[..nbytes]).await;
-                    editor.write(b"\r\n").await;
+                    editor.print("Result: ").await;
+                    editor.print(core::str::from_utf8(&result_buf[..nbytes]).unwrap()).await;
+                    editor.print("\r\n").await;
+                    editor.print(prompt).await;
                 }
                 Event::None => {}
             }
