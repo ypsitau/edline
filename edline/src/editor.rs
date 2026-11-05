@@ -142,11 +142,16 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         event
     }
 
-    pub fn get_result(&self, result_buf: &mut [u8]) -> usize {
+    pub fn get_result(&self) -> &[u8] {
         let (idx_start, idx_end) = self.range_result;
-        let nbytes_copy = (idx_end - idx_start).min(result_buf.len());
-        result_buf[..nbytes_copy].copy_from_slice(&self.line_buf[idx_start..idx_start + nbytes_copy]);
-        nbytes_copy
+        let nbytes_copy = (idx_end - idx_start).min(self.line_buf.len());
+        &self.line_buf[idx_start..idx_start + nbytes_copy]
+    }
+
+    pub fn read_result_str<const N: usize>(&self, result_str: &mut String::<N>) -> Result<(), heapless::CapacityError> {
+        result_str.clear();
+        result_str.push_str(core::str::from_utf8(&self.get_result()).unwrap())?;
+        Ok(())
     }
 
     pub async fn print(&mut self, s: &str) {
@@ -342,11 +347,7 @@ pub async fn simple_task(mut writer: impl io_async::Write, mut reader: impl io_a
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
-    let result_buf = {
-        const BUFSIZE: usize = 128;
-        static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
-        STATIC_CELL.init([0u8; BUFSIZE])
-    };
+    let mut result_str: heapless::String<128> = heapless::String::new();
     let mut editor = Editor::with_serial_output(writer, line_buf, history_buf);
     let mut serkey_reader = serkey::Reader::new();
     let prompt = "> ";
@@ -358,9 +359,9 @@ pub async fn simple_task(mut writer: impl io_async::Write, mut reader: impl io_a
             }
             match editor.process_key(key).await {
                 Event::Entered => {
-                    let nbytes = editor.get_result(result_buf);
+                    editor.read_result_str(&mut result_str).ok();
                     editor.print("Result: ").await;
-                    editor.print(core::str::from_utf8(&result_buf[..nbytes]).unwrap()).await;
+                    editor.print(&result_str).await;
                     editor.print("\r\n").await;
                     editor.print(prompt).await;
                 }
