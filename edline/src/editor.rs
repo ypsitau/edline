@@ -57,7 +57,7 @@ impl<Writer: io_async::Write> Output for SerialOutput<Writer> {
 
     async fn move_cursor_left_n(&mut self, n: usize) {
         if n > 0 {
-            let mut sbuf = String::<64>::new();
+            let mut sbuf = String::<32>::new();
             write!(sbuf, "\x1b[{}D", n).unwrap();
             self.writer.write_all(sbuf.as_bytes()).await.unwrap();
             self.writer.flush().await.unwrap();
@@ -66,7 +66,7 @@ impl<Writer: io_async::Write> Output for SerialOutput<Writer> {
 
     async fn move_cursor_right_n(&mut self, n: usize) {
         if n > 0 {
-            let mut sbuf = String::<64>::new();
+            let mut sbuf = String::<32>::new();
             write!(sbuf, "\x1b[{}C", n).unwrap();
             self.writer.write_all(sbuf.as_bytes()).await.unwrap();
             self.writer.flush().await.unwrap();
