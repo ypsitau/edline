@@ -387,11 +387,13 @@ pub async fn simple_task(mut writer: impl io_async::Write, mut reader: impl io_a
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
-    let mut result_str: heapless::String<128> = heapless::String::new();
+    let mut sbuf_result: heapless::String<128> = heapless::String::new();
     let mut editor = Editor::with_serial_output(writer, line_buf, history_buf);
     let mut serkey_reader = serkey::Reader::new();
     let prompt = "> ";
     editor.print(prompt).await;
+    let mut cnt_completition = 0;
+    let mut sbuf_completion: heapless::String<128> = heapless::String::new();
     loop {
         if let Ok(key) = serkey_reader.read_key(&mut reader).await {
             if enable_break {
@@ -399,17 +401,23 @@ pub async fn simple_task(mut writer: impl io_async::Write, mut reader: impl io_a
             }
             match editor.process_key(key).await {
                 Event::Entered => {
-                    editor.read_result_str(&mut result_str).ok();
+                    editor.read_result_str(&mut sbuf_result).ok();
                     editor.print("Result: ").await;
-                    editor.print(&result_str).await;
+                    editor.print(&sbuf_result).await;
                     editor.print("\r\n").await;
                     editor.print(prompt).await;
                 }
                 Event::ReqCompletionFirst => {
-                    editor.fulfill_completion("first").await;
+                    cnt_completition = 0;
+                    sbuf_completion.clear();
+                    write!(sbuf_completion, "{}", cnt_completition).ok();
+                    editor.fulfill_completion(&sbuf_completion).await;
                 }
                 Event::ReqCompletionNext => {
-                    editor.fulfill_completion("next").await;
+                    cnt_completition += 1;
+                    sbuf_completion.clear();
+                    write!(sbuf_completion, "{}", cnt_completition).ok();
+                    editor.fulfill_completion(&sbuf_completion).await;
                 }
                 Event::None => {}
             }
