@@ -10,6 +10,7 @@ pub enum Event {
     None,
     Entered,
     ReqCompletionFirst,
+    ReqCompletionPrev,
     ReqCompletionNext,
 }
 
@@ -83,9 +84,9 @@ impl<Writer: io_async::Write> Output for SerialOutput<Writer> {
 }
 
 pub struct Editor<'a, Output> {
-    output: Output,
     line_buf: &'a mut [u8],
     history_buf: RoundBuffer<'a>,
+    output: Output,
     idx_cur: usize,
     idx_end: usize,
     idx_completion: usize,
@@ -95,11 +96,12 @@ pub struct Editor<'a, Output> {
 impl<'a, OutputT: Output> Editor<'a, OutputT> {
     const IDX_NONE: usize = usize::MAX;
 
-    pub fn new(output: OutputT, line_buf: &'a mut [u8], history_buf: &'a mut [u8]) -> Self {
+    pub fn new(line_buf: &'a mut [u8], history_buf: &'a mut [u8], output: OutputT) -> Self {
+        assert!(line_buf.len() < history_buf.len(), "line buffer must be smaller than history buffer");
         Self {
-            output,
             line_buf,
             history_buf: RoundBuffer::new(history_buf),
+            output,
             idx_cur: 0,
             idx_end: 0,
             idx_completion: Self::IDX_NONE,
@@ -111,7 +113,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         //println!("Received key: {:?}", key);
         let mut event = Event::None;
         let mut history_operation = false;
-        let mut req_completion = false;
+        let mut quit_completion = true;
         self.range_result = (0, 0);
         match key {
             serkey::Key::CookedChar(c) => { self.insert_char(c).await; }
@@ -121,11 +123,14 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             serkey::Key::CookedCtrl(serkey::Ctrl::E) => { self.move_cursor_to_line_end().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::F) => { self.move_cursor_right().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::H) => { self.backspace().await; }
-            serkey::Key::CookedCtrl(serkey::Ctrl::I) => { req_completion = true; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::I) => {
+                event = self.request_completition(false).await; quit_completion = false; }
             serkey::Key::CookedCtrl(serkey::Ctrl::J) => { self.enter().await; event = Event::Entered; }
             serkey::Key::CookedCtrl(serkey::Ctrl::K) => { self.delete_to_line_end().await; }
-            serkey::Key::CookedCtrl(serkey::Ctrl::N) => { self.recall_history_next().await; history_operation = true; }
-            serkey::Key::CookedCtrl(serkey::Ctrl::P) => { self.recall_history_prev().await; history_operation = true; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::N) => {
+                self.recall_history_next().await; history_operation = true; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::P) => {
+                self.recall_history_prev().await; history_operation = true; }
             serkey::Key::A(attr) if attr.is_ctrl() => { self.move_cursor_to_line_start().await; }
             serkey::Key::B(attr) if attr.is_ctrl() => { self.move_cursor_left().await; }
             serkey::Key::D(attr) if attr.is_ctrl() => { self.delete_char().await; }
@@ -134,14 +139,21 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             serkey::Key::H(attr) if attr.is_ctrl() => { self.backspace().await; }
             serkey::Key::J(attr) if attr.is_ctrl() => { self.enter().await; event = Event::Entered; }
             serkey::Key::K(attr) if attr.is_ctrl() => { self.delete_to_line_end().await; }
-            serkey::Key::N(attr) if attr.is_ctrl() => { self.recall_history_next().await; history_operation = true; }
-            serkey::Key::P(attr) if attr.is_ctrl() => { self.recall_history_prev().await; history_operation = true; }
+            serkey::Key::N(attr) if attr.is_ctrl() => {
+                self.recall_history_next().await; history_operation = true; }
+            serkey::Key::P(attr) if attr.is_ctrl() => {
+                self.recall_history_prev().await; history_operation = true; }
             serkey::Key::Enter(attr) if attr.is_none() => { self.enter().await; event = Event::Entered; }
-            serkey::Key::Tab(attr) if attr.is_none() => { req_completion = true; }
+            serkey::Key::Tab(attr) if attr.is_none() => {
+                event = self.request_completition(false).await; quit_completion = false; }
+            serkey::Key::Tab(attr) if attr.is_shift() => {
+                event = self.request_completition(true).await; quit_completion = false; }
             serkey::Key::Delete(attr) if attr.is_none() => { self.delete_char().await; }
             serkey::Key::Backspace(attr) if attr.is_none() => { self.backspace().await; }
-            serkey::Key::Up(attr) if attr.is_none() => { self.recall_history_prev().await; history_operation = true; }
-            serkey::Key::Down(attr) if attr.is_none() => { self.recall_history_next().await; history_operation = true; }
+            serkey::Key::Up(attr) if attr.is_none() => {
+                self.recall_history_prev().await; history_operation = true; }
+            serkey::Key::Down(attr) if attr.is_none() => {
+                self.recall_history_next().await; history_operation = true; }
             serkey::Key::Left(attr) if attr.is_none() => { self.move_cursor_left().await; }
             serkey::Key::Right(attr) if attr.is_none() => { self.move_cursor_right().await; }
             serkey::Key::Home(attr) if attr.is_none() => { self.move_cursor_to_line_start().await; }
@@ -149,18 +161,20 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             _ => {}
         }
         if !history_operation { self.history_buf.reset_cursor(); }
-        if req_completion {
-            event = if self.idx_completion == Self::IDX_NONE {
-                self.move_cursor_to_line_end().await;
-                self.idx_completion = self.idx_cur;
-                Event::ReqCompletionFirst
-            } else {
-                Event::ReqCompletionNext
-            };
-        } else {
-            self.idx_completion = Self::IDX_NONE;
-        }
+        if quit_completion { self.idx_completion = Self::IDX_NONE; }
         event
+    }
+
+    async fn request_completition(&mut self, reverse: bool) -> Event {
+        if self.idx_completion == Self::IDX_NONE {
+            self.move_cursor_to_line_end().await;
+            self.idx_completion = self.idx_cur;
+            Event::ReqCompletionFirst
+        } else if reverse {
+            Event::ReqCompletionPrev
+        } else {
+            Event::ReqCompletionNext
+        }
     }
 
     pub fn get_result(&self) -> &[u8] {
@@ -368,8 +382,8 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
 }
 
 impl<'a, Writer: io_async::Write> Editor<'a, SerialOutput<Writer>> {
-    pub fn with_serial_output(writer: Writer, line_buf: &'a mut [u8], history_buf: &'a mut [u8]) -> Self {
-        Self::new(SerialOutput::new(writer), line_buf, history_buf)
+    pub fn with_serial_output(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer) -> Self {
+        Self::new(line_buf, history_buf, SerialOutput::new(writer))
     }
 }
 
@@ -386,7 +400,7 @@ pub async fn simple_task(writer: impl io_async::Write, mut reader: impl io_async
         STATIC_CELL.init([0u8; BUFSIZE])
     };
     let mut sbuf_result: heapless::String<128> = heapless::String::new();
-    let mut editor = Editor::with_serial_output(writer, line_buf, history_buf);
+    let mut editor = Editor::with_serial_output(line_buf, history_buf, writer);
     let mut serkey_reader = serkey::Reader::new();
     let prompt = "> ";
     editor.print(prompt).await;
@@ -407,6 +421,12 @@ pub async fn simple_task(writer: impl io_async::Write, mut reader: impl io_async
                 }
                 Event::ReqCompletionFirst => {
                     cnt_completition = 0;
+                    sbuf_completion.clear();
+                    write!(sbuf_completion, "{}", cnt_completition).ok();
+                    editor.fulfill_completion(&sbuf_completion).await;
+                }
+                Event::ReqCompletionPrev => {
+                    cnt_completition -= 1;
                     sbuf_completion.clear();
                     write!(sbuf_completion, "{}", cnt_completition).ok();
                     editor.fulfill_completion(&sbuf_completion).await;
