@@ -9,7 +9,8 @@ use crate::round_buffer::RoundBuffer;
 pub enum Event {
     None,
     Entered,
-    RequestCompletion,
+    ReqCompletionFirst,
+    ReqCompletionNext,
 }
 
 pub trait Output {
@@ -110,6 +111,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         //println!("Received key: {:?}", key);
         let mut event = Event::None;
         let mut history_operation = false;
+        let mut req_completion = false;
         self.range_result = (0, 0);
         match key {
             serkey::Key::CookedChar(c) => { self.insert_char(c).await; }
@@ -119,7 +121,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             serkey::Key::CookedCtrl(serkey::Ctrl::E) => { self.move_cursor_to_line_end().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::F) => { self.move_cursor_right().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::H) => { self.backspace().await; }
-            serkey::Key::CookedCtrl(serkey::Ctrl::I) => { event = Event::RequestCompletion}
+            serkey::Key::CookedCtrl(serkey::Ctrl::I) => { req_completion = true; }
             serkey::Key::CookedCtrl(serkey::Ctrl::J) => { self.enter().await; event = Event::Entered; }
             serkey::Key::CookedCtrl(serkey::Ctrl::K) => { self.delete_to_line_end().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::N) => { self.recall_history_next().await; history_operation = true; }
@@ -135,7 +137,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             serkey::Key::N(attr) if attr.is_ctrl() => { self.recall_history_next().await; history_operation = true; }
             serkey::Key::P(attr) if attr.is_ctrl() => { self.recall_history_prev().await; history_operation = true; }
             serkey::Key::Enter(attr) if attr.is_none() => { self.enter().await; event = Event::Entered; }
-            serkey::Key::Tab(attr) if attr.is_none() => { event = Event::RequestCompletion; }
+            serkey::Key::Tab(attr) if attr.is_none() => { req_completion = true; }
             serkey::Key::Delete(attr) if attr.is_none() => { self.delete_char().await; }
             serkey::Key::Backspace(attr) if attr.is_none() => { self.backspace().await; }
             serkey::Key::Up(attr) if attr.is_none() => { self.recall_history_prev().await; history_operation = true; }
@@ -147,11 +149,14 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             _ => {}
         }
         if !history_operation { self.history_buf.reset_cursor(); }
-        if event == Event::RequestCompletion {
-            if self.idx_completion == Self::IDX_NONE {
+        if req_completion {
+            event = if self.idx_completion == Self::IDX_NONE {
                 self.move_cursor_to_line_end().await;
                 self.idx_completion = self.idx_cur;
-            }
+                Event::ReqCompletionFirst
+            } else {
+                Event::ReqCompletionNext
+            };
         } else {
             self.idx_completion = Self::IDX_NONE;
         }
@@ -203,12 +208,14 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     pub async fn recall_history_prev(&mut self) {
         let width = self.calc_width(0, self.idx_cur);
         if let Some((first, second, _)) = self.history_buf.move_cursor_backward() {
+            let idx_end = first.len() + second.len();
+            assert!(idx_end <= self.line_buf.len());
             self.line_buf[..first.len()].copy_from_slice(first);
-            self.line_buf[first.len()..first.len() + second.len()].copy_from_slice(second);
-            self.idx_end = first.len() + second.len();
-            self.idx_cur = self.idx_end;
+            self.line_buf[first.len()..idx_end].copy_from_slice(second);
+            self.idx_end = idx_end;
+            self.idx_cur = idx_end;
             self.output.move_cursor_left_n(width).await;
-            self.output.write(&self.line_buf[..self.idx_end]).await;
+            self.output.write(&self.line_buf[..idx_end]).await;
             self.output.delete_to_line_end().await;
         }
     }
@@ -216,12 +223,14 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     pub async fn recall_history_next(&mut self) {
         let width = self.calc_width(0, self.idx_cur);
         if let Some((first, second, _)) = self.history_buf.move_cursor_forward() {
+            let idx_end = first.len() + second.len();
+            assert!(idx_end <= self.line_buf.len());
             self.line_buf[..first.len()].copy_from_slice(first);
-            self.line_buf[first.len()..first.len() + second.len()].copy_from_slice(second);
-            self.idx_end = first.len() + second.len();
-            self.idx_cur = self.idx_end;
+            self.line_buf[first.len()..idx_end].copy_from_slice(second);
+            self.idx_end = idx_end;
+            self.idx_cur = idx_end;
             self.output.move_cursor_left_n(width).await;
-            self.output.write(&self.line_buf[..self.idx_end]).await;
+            self.output.write(&self.line_buf[..idx_end]).await;
             self.output.delete_to_line_end().await;
         }
     }
@@ -230,13 +239,13 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         if self.idx_completion == Self::IDX_NONE { return; }
         let idx_end = self.idx_completion + s.len();
         if idx_end > self.line_buf.len() { return; }
-        self.idx_end = idx_end;
-        self.idx_cur = self.idx_end;
-        self.line_buf[self.idx_completion..self.idx_end].copy_from_slice(s.as_bytes());
         let width = self.calc_width(self.idx_completion, self.idx_end);
-        self.output.write(&self.line_buf[self.idx_completion..self.idx_end]).await;
-        self.output.delete_to_line_end().await;
+        self.line_buf[self.idx_completion..idx_end].copy_from_slice(s.as_bytes());
+        self.idx_end = idx_end;
+        self.idx_cur = idx_end;
         self.output.move_cursor_left_n(width).await;
+        self.output.write(&self.line_buf[self.idx_completion..idx_end]).await;
+        self.output.delete_to_line_end().await;
     }
 
     pub async fn insert_char(&mut self, c: char) {
@@ -396,8 +405,11 @@ pub async fn simple_task(mut writer: impl io_async::Write, mut reader: impl io_a
                     editor.print("\r\n").await;
                     editor.print(prompt).await;
                 }
-                Event::RequestCompletion => {
-                    // Handle request completion if needed
+                Event::ReqCompletionFirst => {
+                    editor.fulfill_completion("first").await;
+                }
+                Event::ReqCompletionNext => {
+                    editor.fulfill_completion("next").await;
                 }
                 Event::None => {}
             }
