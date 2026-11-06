@@ -5,7 +5,7 @@ members = [
     "apps/host",
     "apps/host-round-buffer",
 ]
-default-members = ["apps/host", "apps/host-round-buffer"]
+default-members = ["apps/host"]
 
 [workspace.dependencies]
 edline = { path = "edline" }

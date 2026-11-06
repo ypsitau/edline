@@ -5,9 +5,11 @@ use heapless::String;
 use static_cell::StaticCell;
 use crate::round_buffer::RoundBuffer;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
     None,
     Entered,
+    RequestCompletion,
 }
 
 pub trait Output {
@@ -85,10 +87,13 @@ pub struct Editor<'a, Output> {
     history_buf: RoundBuffer<'a>,
     idx_cur: usize,
     idx_end: usize,
+    idx_completion: usize,
     range_result: (usize, usize),
 }
 
 impl<'a, OutputT: Output> Editor<'a, OutputT> {
+    const IDX_NONE: usize = usize::MAX;
+
     pub fn new(output: OutputT, line_buf: &'a mut [u8], history_buf: &'a mut [u8]) -> Self {
         Self {
             output,
@@ -96,6 +101,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             history_buf: RoundBuffer::new(history_buf),
             idx_cur: 0,
             idx_end: 0,
+            idx_completion: Self::IDX_NONE,
             range_result: (0, 0),
         }
     }
@@ -113,6 +119,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             serkey::Key::CookedCtrl(serkey::Ctrl::E) => { self.move_cursor_to_line_end().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::F) => { self.move_cursor_right().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::H) => { self.backspace().await; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::I) => { event = Event::RequestCompletion}
             serkey::Key::CookedCtrl(serkey::Ctrl::J) => { self.enter().await; event = Event::Entered; }
             serkey::Key::CookedCtrl(serkey::Ctrl::K) => { self.delete_to_line_end().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::N) => { self.recall_history_next().await; history_operation = true; }
@@ -128,6 +135,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             serkey::Key::N(attr) if attr.is_ctrl() => { self.recall_history_next().await; history_operation = true; }
             serkey::Key::P(attr) if attr.is_ctrl() => { self.recall_history_prev().await; history_operation = true; }
             serkey::Key::Enter(attr) if attr.is_none() => { self.enter().await; event = Event::Entered; }
+            serkey::Key::Tab(attr) if attr.is_none() => { event = Event::RequestCompletion; }
             serkey::Key::Delete(attr) if attr.is_none() => { self.delete_char().await; }
             serkey::Key::Backspace(attr) if attr.is_none() => { self.backspace().await; }
             serkey::Key::Up(attr) if attr.is_none() => { self.recall_history_prev().await; history_operation = true; }
@@ -139,6 +147,14 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             _ => {}
         }
         if !history_operation { self.history_buf.reset_cursor(); }
+        if event == Event::RequestCompletion {
+            if self.idx_completion == Self::IDX_NONE {
+                self.move_cursor_to_line_end().await;
+                self.idx_completion = self.idx_cur;
+            }
+        } else {
+            self.idx_completion = Self::IDX_NONE;
+        }
         event
     }
 
@@ -148,9 +164,13 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         &self.line_buf[idx_start..idx_start + nbytes_copy]
     }
 
+    pub fn get_result_str(&self) -> &str {
+        core::str::from_utf8(&self.get_result()).unwrap()
+    }
+
     pub fn read_result_str<const N: usize>(&self, result_str: &mut String::<N>) -> Result<(), heapless::CapacityError> {
         result_str.clear();
-        result_str.push_str(core::str::from_utf8(&self.get_result()).unwrap())?;
+        result_str.push_str(self.get_result_str())?;
         Ok(())
     }
 
@@ -180,23 +200,6 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         self.idx_end = 0;
     }
 
-    fn strip(buf: &[u8]) -> (usize, usize) {
-        fn is_skippable(byte: u8) -> bool {
-            byte == 0x00 || byte == b' ' || byte == b'\t' || byte == b'\n' || byte == b'\r'
-        }
-        let idx_start = {
-            let mut idx = 0;
-            while idx < buf.len() && is_skippable(buf[idx]) { idx += 1; }
-            idx
-        };
-        let idx_end = {
-            let mut idx = buf.len();
-            while idx > 0 && is_skippable(buf[idx - 1]) { idx -= 1; }
-            idx
-        };
-        (idx_start, idx_end)
-    }
-
     pub async fn recall_history_prev(&mut self) {
         let width = self.calc_width(0, self.idx_cur);
         if let Some((first, second, _)) = self.history_buf.move_cursor_backward() {
@@ -223,13 +226,24 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         }
     }
 
+    pub async fn fulfill_completion(&mut self, s: &str) {
+        if self.idx_completion == Self::IDX_NONE { return; }
+        let idx_end = self.idx_completion + s.len();
+        if idx_end > self.line_buf.len() { return; }
+        self.idx_end = idx_end;
+        self.idx_cur = self.idx_end;
+        self.line_buf[self.idx_completion..self.idx_end].copy_from_slice(s.as_bytes());
+        let width = self.calc_width(self.idx_completion, self.idx_end);
+        self.output.write(&self.line_buf[self.idx_completion..self.idx_end]).await;
+        self.output.delete_to_line_end().await;
+        self.output.move_cursor_left_n(width).await;
+    }
+
     pub async fn insert_char(&mut self, c: char) {
         let nbytes = self.insert_char_to_buf(self.idx_cur, c);
         if nbytes == 0 { return; }
         let idx_next = self.idx_cur + nbytes;
-        if self.idx_end < idx_next {
-            self.idx_end = idx_next;
-        }
+        if self.idx_end < idx_next { self.idx_end = idx_next; }
         self.output.write(&self.line_buf[self.idx_cur..self.idx_end]).await;
         if idx_next < self.idx_end {
             self.output.move_cursor_left_n(self.calc_width(idx_next, self.idx_end)).await;
@@ -325,6 +339,23 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             .expect("line buffer contains invalid UTF-8");
         unicode_width::UnicodeWidthStr::width(text)
     }
+
+    fn strip(buf: &[u8]) -> (usize, usize) {
+        fn is_skippable(byte: u8) -> bool {
+            byte == 0x00 || byte == b' ' || byte == b'\t' || byte == b'\n' || byte == b'\r'
+        }
+        let idx_start = {
+            let mut idx = 0;
+            while idx < buf.len() && is_skippable(buf[idx]) { idx += 1; }
+            idx
+        };
+        let idx_end = {
+            let mut idx = buf.len();
+            while idx > 0 && is_skippable(buf[idx - 1]) { idx -= 1; }
+            idx
+        };
+        (idx_start, idx_end)
+    }
 }
 
 impl<'a, Writer: io_async::Write> Editor<'a, SerialOutput<Writer>> {
@@ -364,6 +395,9 @@ pub async fn simple_task(mut writer: impl io_async::Write, mut reader: impl io_a
                     editor.print(&result_str).await;
                     editor.print("\r\n").await;
                     editor.print(prompt).await;
+                }
+                Event::RequestCompletion => {
+                    // Handle request completion if needed
                 }
                 Event::None => {}
             }
