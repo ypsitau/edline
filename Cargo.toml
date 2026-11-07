@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "edline",
     "apps/host-console",
+    "apps/host-graphics",
     "apps/host-round-buffer",
 ]
 default-members = ["apps/host-console"]
