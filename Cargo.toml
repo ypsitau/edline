@@ -2,10 +2,10 @@
 resolver = "2"
 members = [
     "edline",
-    "apps/host",
+    "apps/host-console",
     "apps/host-round-buffer",
 ]
-default-members = ["apps/host"]
+default-members = ["apps/host-console"]
 
 [workspace.dependencies]
 edline = { path = "edline" }
