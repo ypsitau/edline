@@ -15,5 +15,7 @@ static_cell = { workspace = true }
 serkey = { workspace = true }
 unicode-width = { workspace = true }
 
+embedded-graphics = { workspace = true }
+
 [features]
 default = []

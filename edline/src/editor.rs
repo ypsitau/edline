@@ -5,6 +5,8 @@ use heapless::String;
 use static_cell::StaticCell;
 use crate::round_buffer::RoundBuffer;
 use crate::stream_output::SerialOutput;
+use crate::graphics_output::GraphicsOutput;
+use embedded_graphics as eg;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
@@ -341,8 +343,14 @@ impl<'a, Writer: io_async::Write> Editor<'a, SerialOutput<Writer>> {
     }
 }
 
+impl<'a, DrawTarget: eg::draw_target::DrawTarget> Editor<'a, GraphicsOutput<DrawTarget>> {
+    pub fn with_graphics_output(line_buf: &'a mut [u8], history_buf: &'a mut [u8], target: DrawTarget) -> Self {
+        Self::new(line_buf, history_buf, GraphicsOutput::new(target))
+    }
+}
+
 #[allow(dead_code)]
-pub async fn simple_task_stream(writer: impl io_async::Write, mut reader: impl io_async::Read, enable_break: bool) {
+pub async fn simple_task_stream(writer: impl io_async::Write, reader: impl io_async::Read, enable_break: bool) {
     let line_buf = {
         const BUFSIZE: usize = 128;
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
@@ -353,8 +361,28 @@ pub async fn simple_task_stream(writer: impl io_async::Write, mut reader: impl i
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
+    let editor = Editor::with_serial_output(line_buf, history_buf, writer);
+    simple_task_common(editor, reader, enable_break).await;
+}
+
+#[allow(dead_code)]
+pub async fn simple_task_graphics(target: impl eg::draw_target::DrawTarget, reader: impl io_async::Read, enable_break: bool) {
+    let line_buf = {
+        const BUFSIZE: usize = 128;
+        static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
+        STATIC_CELL.init([0u8; BUFSIZE])
+    };
+    let history_buf = {
+        const BUFSIZE: usize = 1024;
+        static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
+        STATIC_CELL.init([0u8; BUFSIZE])
+    };
+    let editor = Editor::with_graphics_output(line_buf, history_buf, target);
+    simple_task_common(editor, reader, enable_break).await;
+}
+
+pub async fn simple_task_common(mut editor: Editor<'_, impl Output>, mut reader: impl io_async::Read, enable_break: bool) {
     let mut sbuf_result: heapless::String<128> = heapless::String::new();
-    let mut editor = Editor::with_serial_output(line_buf, history_buf, writer);
     let mut serkey_reader = serkey::Reader::new();
     let prompt = "> ";
     editor.print(prompt).await;

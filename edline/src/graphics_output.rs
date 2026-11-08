@@ -1,7 +1,16 @@
-pub struct GraphicsOutput {
+use embedded_graphics as eg;
+
+pub struct GraphicsOutput<DrawTarget> {
+    target: DrawTarget,
 }
 
-impl crate::editor::Output for GraphicsOutput {
+impl<DrawTarget: eg::draw_target::DrawTarget> GraphicsOutput<DrawTarget> {
+    pub fn new(target: DrawTarget) -> Self {
+        Self { target }
+    }
+}
+
+impl<DrawTarget> crate::editor::Output for GraphicsOutput<DrawTarget> {
     type Error = ();
 
     async fn write(&mut self, _data: &[u8]) {}

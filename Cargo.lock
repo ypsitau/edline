@@ -247,6 +247,7 @@ dependencies = [
 name = "edline"
 version = "0.0.2"
 dependencies = [
+ "embedded-graphics",
  "embedded-io-async",
  "heapless",
  "serkey",
