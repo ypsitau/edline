@@ -513,22 +513,30 @@ name = "host-graphics"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "crossterm",
+ "edline",
  "eg-seven-segment",
  "embedded-graphics",
  "embedded-graphics-framebuf",
  "embedded-graphics-simulator",
  "embedded-hal",
  "embedded-hal-async",
+ "embedded-io",
+ "embedded-io-adapters",
+ "embedded-io-async",
  "embedded-text",
  "heapless",
  "indoc",
  "micromath",
  "mplusfonts",
+ "serkey",
+ "static_cell",
  "time",
  "tinybmp",
  "tinytga",
  "tokio",
  "u8g2-fonts",
+ "windows-sys",
 ]
 
 [[package]]

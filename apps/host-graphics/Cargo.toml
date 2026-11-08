@@ -4,9 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+edline = { workspace = true }
+serkey = { workspace = true }
+
 eg-seven-segment = { version = "0.2.0" }
 embedded-graphics = { version = "0.8.2" }
 embedded-graphics-framebuf = { version = "0.5.0" }
+embedded-graphics-simulator = { version = "0.8.0" }
 embedded-hal = { version = "1.0.0" }
 embedded-hal-async = { version = "1.0.0" }
 embedded-text = { version = "0.7.3" }
@@ -18,8 +22,13 @@ time = { version = "0.3.55", default-features = false } # no_std
 tinybmp = { version = "0.7.0" }
 tinytga = { version = "0.5.0" }
 u8g2-fonts = { version = "0.8.0" }
-
-[target.'cfg(any(target_os = "windows", target_os = "linux"))'.dependencies]
-embedded-graphics-simulator = { version = "0.8.0" }
+crossterm = { version = "0.29.0" }
+static_cell = { version = "2.1.1" }
+embedded-io = { version = "0.7.1" }
+embedded-io-async = { version = "0.7.0" }
+embedded-io-adapters = { version = "0.7.0", features = ["tokio-1"] }
 chrono = { version = "0.4" }
-tokio = { version = "1.53.2", features = ["macros", "rt-multi-thread", "time"] }
+tokio = { version = "1.53.2", features = ["macros", "rt-multi-thread", "time", "io-std", "io-util", "macros"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_System_Console"] }

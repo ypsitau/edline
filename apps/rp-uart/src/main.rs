@@ -22,7 +22,7 @@ struct Board<UartTx, UartRx> {
 #[emb::executor::main]
 async fn main(_spawner: emb::executor::Spawner) {
     let board = init_board();
-    let fut_edline = edline::simple_task(board.uart_tx, board.uart_rx, false);
+    let fut_edline = edline::simple_task_stream(board.uart_tx, board.uart_rx, false);
     fut_edline.await;
 }
 

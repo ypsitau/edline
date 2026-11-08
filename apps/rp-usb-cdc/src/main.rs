@@ -75,7 +75,7 @@ async fn main(_spawner: emb::executor::Spawner) {
     };
     let mut usb_device = usb_builder.build();
     let fut_usb = usb_device.run();
-    let fut_edline = edline::simple_task(cdc_sender, cdc_receiver, false);
+    let fut_edline = edline::simple_task_stream(cdc_sender, cdc_receiver, false);
     emb::futures::join::join(fut_usb, fut_edline).await;
 }
 

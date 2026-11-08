@@ -18,7 +18,7 @@ use embedded_io_async as io_async;
 use static_cell::StaticCell;
 use heapless::String;
 
-pub async fn simple_task(writer: impl io_async::Write, mut reader: impl io_async::Read) {
+pub async fn simple_task_stream(writer: impl io_async::Write, mut reader: impl io_async::Read) {
     let line_buf = {
         const BUFSIZE: usize = 128;
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();

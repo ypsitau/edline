@@ -14,7 +14,7 @@ async fn main() -> std::io::Result<()> {
     print!("Press Ctrl-C to exit\r\n");
     let stdout = embedded_io_adapters::tokio_1::FromTokio::new(tokio::io::stdout());
     let stdin = embedded_io_adapters::tokio_1::FromTokio::new(tokio::io::stdin());
-    edline::simple_task(stdout, stdin, true).await;
+    edline::simple_task_stream(stdout, stdin, true).await;
     crossterm::terminal::disable_raw_mode()?;
     #[cfg(windows)]
     unsafe {

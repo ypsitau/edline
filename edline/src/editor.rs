@@ -388,7 +388,7 @@ impl<'a, Writer: io_async::Write> Editor<'a, SerialOutput<Writer>> {
 }
 
 #[allow(dead_code)]
-pub async fn simple_task(writer: impl io_async::Write, mut reader: impl io_async::Read, enable_break: bool) {
+pub async fn simple_task_stream(writer: impl io_async::Write, mut reader: impl io_async::Read, enable_break: bool) {
     let line_buf = {
         const BUFSIZE: usize = 128;
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
