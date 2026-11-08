@@ -16,9 +16,11 @@ async fn main() { //-> Result<(), core::convert::Infallible> {
         mode
     };
     print!("Press Ctrl-C to exit\r\n");
-    let stdout = embedded_io_adapters::tokio_1::FromTokio::new(tokio::io::stdout());
+    let target = eg_sim::SimulatorDisplay::<eg::pixelcolor::Rgb888>::new(Size::new(320, 240));
+    let output_settings = eg_sim::OutputSettingsBuilder::new().scale(2).build();
+    let mut window = eg_sim::Window::new("edline", &output_settings);
     let stdin = embedded_io_adapters::tokio_1::FromTokio::new(tokio::io::stdin());
-    edline::simple_task_stream(stdout, stdin, true).await;
+    edline::simple_task_graphics(target, stdin, true, |target| window.update(&target)).await;
     crossterm::terminal::disable_raw_mode().unwrap();
     #[cfg(windows)]
     unsafe {
@@ -26,12 +28,4 @@ async fn main() { //-> Result<(), core::convert::Infallible> {
         let handle = wc::GetStdHandle(wc::STD_INPUT_HANDLE);
         wc::SetConsoleMode(handle, mode_saved);
     }
-    //Ok(())
-    /*
-    let mut target = eg_sim::SimulatorDisplay::<eg::pixelcolor::Rgb888>::new(Size::new(320, 240));
-    let output_settings = eg_sim::OutputSettingsBuilder::new().scale(2).build();
-    let mut window = eg_sim::Window::new("text_fonts", &output_settings);
-    window.show_static(&target);
-    Ok(())
-    */
 }

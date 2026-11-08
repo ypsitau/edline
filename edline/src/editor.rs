@@ -343,9 +343,19 @@ impl<'a, Writer: io_async::Write> Editor<'a, SerialOutput<Writer>> {
     }
 }
 
-impl<'a, DrawTarget: eg::draw_target::DrawTarget> Editor<'a, GraphicsOutput<DrawTarget>> {
-    pub fn with_graphics_output(line_buf: &'a mut [u8], history_buf: &'a mut [u8], target: DrawTarget) -> Self {
-        Self::new(line_buf, history_buf, GraphicsOutput::new(target))
+impl<'a, DrawTarget, ColorType, FnRefresh> Editor<'a, GraphicsOutput<DrawTarget, ColorType, FnRefresh>>
+where
+    DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
+    ColorType: eg::pixelcolor::RgbColor,
+    FnRefresh: FnMut(&mut DrawTarget),
+{
+    pub fn with_graphics_output(
+        line_buf: &'a mut [u8],
+        history_buf: &'a mut [u8],
+        target: DrawTarget,
+        fn_refresh: FnRefresh,
+    ) -> Self {
+        Self::new(line_buf, history_buf, GraphicsOutput::new(target, fn_refresh))
     }
 }
 
@@ -366,7 +376,14 @@ pub async fn simple_task_stream(writer: impl io_async::Write, reader: impl io_as
 }
 
 #[allow(dead_code)]
-pub async fn simple_task_graphics(target: impl eg::draw_target::DrawTarget, reader: impl io_async::Read, enable_break: bool) {
+pub async fn simple_task_graphics<DrawTarget, ColorType, Reader, FnRefresh>
+    (target: DrawTarget, reader: Reader, enable_break: bool, fn_refresh: FnRefresh)
+where
+    DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
+    ColorType: eg::pixelcolor::RgbColor,
+    Reader: io_async::Read,
+    FnRefresh: FnMut(&mut DrawTarget),
+{
     let line_buf = {
         const BUFSIZE: usize = 128;
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
@@ -377,7 +394,7 @@ pub async fn simple_task_graphics(target: impl eg::draw_target::DrawTarget, read
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
-    let editor = Editor::with_graphics_output(line_buf, history_buf, target);
+    let editor = Editor::with_graphics_output(line_buf, history_buf, target, fn_refresh);
     simple_task_common(editor, reader, enable_break).await;
 }
 
