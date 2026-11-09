@@ -86,6 +86,14 @@ where
 {
     type Error = ();
 
+    async fn init(&mut self) {
+        self.clear_char_buf();
+        self.pt = Point::zero();
+        self.cursor_visible = false;
+        self.target.clear(ColorType::BLACK).ok();
+        self.refresh();
+    }
+
     async fn write(&mut self, data: &[u8]) {
         self.hide_cursor();
         let text_style = eg::text::TextStyleBuilder::new()

@@ -41,7 +41,7 @@
 //! }
 //! ```
 
-//#![no_std]
+#![no_std]
 
 mod editor;
 mod round_buffer;

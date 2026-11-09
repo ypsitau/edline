@@ -21,6 +21,7 @@ pub enum Event {
 pub trait Output {
     type Error;
 
+    fn init(&mut self) -> impl Future<Output = ()>;
     fn write(&mut self, data: &[u8]) -> impl Future<Output = ()>;
     fn new_line(&mut self) -> impl Future<Output = ()>; 
     fn move_cursor_left_n(&mut self, n: usize) -> impl Future<Output = ()>;
@@ -37,6 +38,7 @@ pub struct DummyOutput;
 impl Output for DummyOutput {
     type Error = ();
 
+    async fn init(&mut self) {}
     async fn write(&mut self, _data: &[u8]) {}
     async fn new_line(&mut self) {}
     async fn move_cursor_left_n(&mut self, _n: usize) {}
@@ -68,6 +70,14 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             idx_completion: Self::IDX_NONE,
             range_result: (0, 0),
         }
+    }
+
+    pub async fn init(&mut self) {
+        self.idx_cur = 0;
+        self.idx_end = 0;
+        self.idx_completion = Self::IDX_NONE;
+        self.range_result = (0, 0);
+        self.output.init().await;
     }
 
     pub async fn process_key(&mut self, key: serkey::Key) -> Event {
@@ -417,6 +427,7 @@ pub async fn simple_task_common(mut editor: Editor<'_, impl Output>, mut reader:
     let mut sbuf_result: heapless::String<128> = heapless::String::new();
     let mut serkey_reader = serkey::Reader::new();
     let prompt = "> ";
+    editor.init().await;
     editor.print(prompt).await;
     let mut cnt_completition = 0;
     let mut sbuf_completion: heapless::String<128> = heapless::String::new();

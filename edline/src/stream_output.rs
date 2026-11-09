@@ -15,6 +15,9 @@ impl<Writer: io_async::Write> SerialOutput<Writer> {
 impl<Writer: io_async::Write> crate::editor::Output for SerialOutput<Writer> {
     type Error = Writer::Error;
 
+
+    async fn init(&mut self) {}
+    
     async fn write(&mut self, data: &[u8]) {
         self.writer.write_all(data).await.unwrap();
         self.writer.flush().await.unwrap();
