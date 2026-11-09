@@ -26,6 +26,10 @@ pub trait Output {
     fn move_cursor_left_n(&mut self, n: usize) -> impl Future<Output = ()>;
     fn move_cursor_right_n(&mut self, n: usize) -> impl Future<Output = ()>;
     fn delete_to_line_end(&mut self) -> impl Future<Output = ()>;
+    /// Waits for and performs the next cursor blink, if supported by this output.
+    fn wait_cursor_blink(&mut self) -> impl Future<Output = ()> {
+        core::future::pending()
+    }
 }
 
 pub struct DummyOutput;
@@ -152,6 +156,13 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
 
     pub async fn print(&mut self, s: &str) {
         self.output.write(s.as_bytes()).await;
+    }
+
+    /// Waits for and performs the next cursor blink while the editor is idle.
+    ///
+    /// Custom input loops should poll this concurrently with their input future.
+    pub async fn wait_cursor_blink(&mut self) {
+        self.output.wait_cursor_blink().await;
     }
 
     pub async fn enter(&mut self) {
@@ -410,7 +421,23 @@ pub async fn simple_task_common(mut editor: Editor<'_, impl Output>, mut reader:
     let mut cnt_completition = 0;
     let mut sbuf_completion: heapless::String<128> = heapless::String::new();
     loop {
-        if let Ok(key) = serkey_reader.read_key(&mut reader).await {
+        let key = {
+            let mut read = core::pin::pin!(serkey_reader.read_key(&mut reader));
+            loop {
+                let mut blink = core::pin::pin!(editor.wait_cursor_blink());
+                let result = core::future::poll_fn(|cx| {
+                    if let core::task::Poll::Ready(result) = read.as_mut().poll(cx) {
+                        return core::task::Poll::Ready(Some(result));
+                    }
+                    if blink.as_mut().poll(cx).is_ready() {
+                        return core::task::Poll::Ready(None);
+                    }
+                    core::task::Poll::Pending
+                }).await;
+                if let Some(result) = result { break result; }
+            }
+        };
+        if let Ok(key) = key {
             if enable_break {
                 if let serkey::Key::CookedCtrl(serkey::Ctrl::C) = key { break; }
             }

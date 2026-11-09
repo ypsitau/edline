@@ -9,6 +9,12 @@ A line editor for embedded systems.
 - UTF-8 and VT100 terminal control sequence handling
 - Asynchronous operation compatible with embedded-io-async
 - Minimal dependencies for lightweight usage
+- Graphics output with a blinking underline cursor
+
+Graphics output reserves two black pixel rows below each text row for the
+cursor. `simple_task_graphics` handles blinking while waiting for input.
+Custom input loops must poll `Editor::wait_cursor_blink` concurrently with the
+input future, keeping that future alive across blinks.
 
 ## Example
 

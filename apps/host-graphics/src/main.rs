@@ -46,7 +46,6 @@ async fn main() { //-> Result<(), core::convert::Infallible> {
         _ = task_window => {}
         _ = task_edline => {}
     }
-
     crossterm::terminal::disable_raw_mode().unwrap();
     #[cfg(windows)]
     unsafe {
