@@ -130,10 +130,12 @@ where
 }
 
 #[allow(dead_code)]
-pub struct BoardWithSSD1306<const N_I2C_DEVS: usize, Display, I2c, InputPin> {
+pub struct BoardWithSSD1306<const N_I2C_DEVS: usize, Display, I2c, InputPin, UartTx, UartRx> {
     pub display: Display,
     pub pin_sw: InputPin,
     pub i2c_devs: [I2c; N_I2C_DEVS],
+    pub uart_tx: UartTx,
+    pub uart_rx: UartRx,
 }
 
 #[allow(dead_code)]
@@ -143,20 +145,24 @@ pub fn init_with_ssd1306<'d, const N_I2C_DEVS: usize>(rotation: ssd1306::rotatio
         impl eg::draw_target::DrawTarget<Color = eg::pixelcolor::BinaryColor, Error: core::fmt::Debug> + Flushable,
         impl hal::i2c::I2c,
         impl hal::digital::InputPin + hal_async::digital::Wait,
+        impl io_async::Write,
+        impl io_async::Read,
     >
 {
     use ssd1306::prelude::*;
     let p = rp::init(Default::default());
+    let (pin_uart0_tx, pin_uart0_rx) = (p.PIN_0, p.PIN_1);
+    let pin_sw = p.PIN_16;
+    let (pin_i2c1_sda, pin_i2c1_scl) = (p.PIN_14, p.PIN_15);
     let mutex_i2c1 = {
-        let (pin_sda, pin_scl) = (p.PIN_14, p.PIN_15);
         let mut config = rp::i2c::Config::default();
         config.frequency = 400_000;
         type I2c1 = rp::i2c::I2c<'static, rp::peripherals::I2C1, rp::i2c::Blocking>;
         static STATIC_CELL: StaticCell<BlockingMutexNoop<RefCell<I2c1>>> = StaticCell::new();
         STATIC_CELL.init(BlockingMutexNoop::new(RefCell::new(
-            I2c1::new_blocking(p.I2C1, pin_scl, pin_sda, config))))
+            I2c1::new_blocking(p.I2C1, pin_i2c1_scl, pin_i2c1_sda, config))))
     };
-    let pin_sw = rp::gpio::Input::new(p.PIN_16, rp::gpio::Pull::Up);
+    let pin_sw = rp::gpio::Input::new(pin_sw, rp::gpio::Pull::Up);
     let i2c_devs = core::array::from_fn(|_| emb::hal::shared_bus::blocking::i2c::I2cDevice::new(mutex_i2c1));
     let mut display = {
         let i2c_dev = emb::hal::shared_bus::blocking::i2c::I2cDevice::new(mutex_i2c1);
@@ -164,6 +170,21 @@ pub fn init_with_ssd1306<'d, const N_I2C_DEVS: usize>(rotation: ssd1306::rotatio
         let size = ssd1306::size::DisplaySize128x64;
         ssd1306::Ssd1306::new(interface, size, rotation).into_buffered_graphics_mode()
     };
+    let uart = {
+        let tx_buffer = {
+            const BUFSIZE: usize = 64;
+            static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
+            STATIC_CELL.init([0u8; BUFSIZE])
+        };
+        let rx_buffer = {
+            const BUFSIZE: usize = 64;
+            static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
+            STATIC_CELL.init([0u8; BUFSIZE])
+        };
+        let config = rp::uart::Config::default();
+        rp::uart::BufferedUart::new(p.UART0, pin_uart0_tx, pin_uart0_rx, Irqs, tx_buffer, rx_buffer, config)
+    };
+    let (uart_tx, uart_rx) = uart.split();
     display.init().unwrap();
-    BoardWithSSD1306 { display, pin_sw, i2c_devs, }
+    BoardWithSSD1306 { display, pin_sw, i2c_devs, uart_tx, uart_rx }
 }
