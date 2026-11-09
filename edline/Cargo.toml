@@ -9,6 +9,7 @@ repository = "https://github.com/ypsitau/edline"
 readme = { workspace = true }
 
 [dependencies]
+embedded-hal-async = { workspace = true }
 embedded-io-async = { workspace = true }
 heapless = { workspace = true }
 static_cell = { workspace = true }

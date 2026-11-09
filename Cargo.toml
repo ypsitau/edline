@@ -17,3 +17,4 @@ serkey = { version = "0.1.4" }
 unicode-width = { version = "0.2.3", features = ["no_std"] }
 
 embedded-graphics = { version = "0.8.2" }
+embedded-hal-async = { version = "1.0.0" }

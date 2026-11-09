@@ -1,10 +1,12 @@
+use embedded_hal_async as hal_async;
 use embedded_graphics as eg;
 use embedded_graphics::mono_font::ascii as eg_fonts;
 use embedded_graphics::prelude::*;
 
-pub struct GraphicsOutput<DrawTarget, ColorType, FnRefresh> {
+pub struct GraphicsOutput<DrawTarget, ColorType, DelayNs, FnRefresh> {
     target: DrawTarget,
     color_type: core::marker::PhantomData<ColorType>,
+    delay_ns: DelayNs,
     fn_refresh: FnRefresh,
     font: &'static eg::mono_font::MonoFont<'static>,
     char_buf: heapless::Vec<u8, 8>,
@@ -13,16 +15,18 @@ pub struct GraphicsOutput<DrawTarget, ColorType, FnRefresh> {
     y_advance: i32,
 }
 
-impl<DrawTarget, ColorType, FnRefresh> GraphicsOutput<DrawTarget, ColorType, FnRefresh>
+impl<DrawTarget, ColorType, DelayNs, FnRefresh> GraphicsOutput<DrawTarget, ColorType, DelayNs, FnRefresh>
 where
     DrawTarget: eg::draw_target::DrawTarget,
+    DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
 {
-    pub fn new(target: DrawTarget, fn_refresh: FnRefresh) -> Self {
+    pub fn new(target: DrawTarget, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
         let font = &eg_fonts::FONT_10X20;
         Self {
             target,
             color_type: core::marker::PhantomData,
+            delay_ns: delay,
             fn_refresh,
             font,
             char_buf: heapless::Vec::new(),
@@ -39,9 +43,11 @@ where
     }
 }
 
-impl<DrawTarget, ColorType, FnRefresh> crate::editor::Output for GraphicsOutput<DrawTarget, ColorType, FnRefresh>
+impl<DrawTarget, ColorType, DelayNs, FnRefresh> crate::editor::Output
+    for GraphicsOutput<DrawTarget, ColorType, DelayNs, FnRefresh>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
+    DelayNs: hal_async::delay::DelayNs,
     ColorType: eg::pixelcolor::RgbColor,
     FnRefresh: FnMut(&mut DrawTarget),
 {
@@ -86,7 +92,16 @@ where
         self.pt.x += self.x_advance * n as i32;
     }
     async fn delete_to_line_end(&mut self) {
-        
+        //eg::primitives::Rectangle::new(
+        //    self.pt,
+        //    eg::primitives::Size::new(
+        //        (self.target.bounding_box().size.width - self.pt.x as u32) as u32,
+        //        self.y_advance as u32,
+        //    ),
+        //)
+        //.into_styled(eg::primitives::PrimitiveStyle::with_fill(ColorType::BLACK))
+        //.draw(&mut self.target)
+        //.ok();
     }
 
 }

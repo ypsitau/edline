@@ -7,6 +7,7 @@ use crate::round_buffer::RoundBuffer;
 use crate::stream_output::SerialOutput;
 use crate::graphics_output::GraphicsOutput;
 use embedded_graphics as eg;
+use embedded_hal_async as hal_async;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
@@ -343,19 +344,21 @@ impl<'a, Writer: io_async::Write> Editor<'a, SerialOutput<Writer>> {
     }
 }
 
-impl<'a, DrawTarget, ColorType, FnRefresh> Editor<'a, GraphicsOutput<DrawTarget, ColorType, FnRefresh>>
+impl<'a, DrawTarget, ColorType, DelayNs, FnRefresh> Editor<'a, GraphicsOutput<DrawTarget, ColorType, DelayNs, FnRefresh>>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     ColorType: eg::pixelcolor::RgbColor,
+    DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
 {
     pub fn with_graphics_output(
         line_buf: &'a mut [u8],
         history_buf: &'a mut [u8],
         target: DrawTarget,
+        delay: DelayNs,
         fn_refresh: FnRefresh,
     ) -> Self {
-        Self::new(line_buf, history_buf, GraphicsOutput::new(target, fn_refresh))
+        Self::new(line_buf, history_buf, GraphicsOutput::new(target, delay, fn_refresh))
     }
 }
 
@@ -376,12 +379,13 @@ pub async fn simple_task_stream(writer: impl io_async::Write, reader: impl io_as
 }
 
 #[allow(dead_code)]
-pub async fn simple_task_graphics<DrawTarget, ColorType, Reader, FnRefresh>
-    (target: DrawTarget, reader: Reader, enable_break: bool, fn_refresh: FnRefresh)
+pub async fn simple_task_graphics<DrawTarget, ColorType, Reader, DelayNs, FnRefresh>
+    (target: DrawTarget, reader: Reader, enable_break: bool, delay: DelayNs, fn_refresh: FnRefresh)
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     ColorType: eg::pixelcolor::RgbColor,
     Reader: io_async::Read,
+    DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
 {
     let line_buf = {
@@ -394,7 +398,7 @@ where
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
-    let editor = Editor::with_graphics_output(line_buf, history_buf, target, fn_refresh);
+    let editor = Editor::with_graphics_output(line_buf, history_buf, target, delay, fn_refresh);
     simple_task_common(editor, reader, enable_break).await;
 }
 

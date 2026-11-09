@@ -1,3 +1,4 @@
+use embedded_hal_async as hal_async;
 use embedded_graphics as eg;
 use embedded_graphics::prelude::*;
 use embedded_graphics_simulator as eg_sim;
@@ -20,12 +21,20 @@ async fn main() { //-> Result<(), core::convert::Infallible> {
     let output_settings = eg_sim::OutputSettingsBuilder::new().scale(2).build();
     let mut window = eg_sim::Window::new("edline", &output_settings);
     let stdin = embedded_io_adapters::tokio_1::FromTokio::new(tokio::io::stdin());
-    edline::simple_task_graphics(target, stdin, true, |target| window.update(&target)).await;
+    edline::simple_task_graphics(target, stdin, true, ThreadDelay, |target| window.update(&target)).await;
     crossterm::terminal::disable_raw_mode().unwrap();
     #[cfg(windows)]
     unsafe {
         use windows_sys::Win32::System::Console as wc;
         let handle = wc::GetStdHandle(wc::STD_INPUT_HANDLE);
         wc::SetConsoleMode(handle, mode_saved);
+    }
+}
+
+pub struct ThreadDelay;
+
+impl hal_async::delay::DelayNs for ThreadDelay {
+    async fn delay_ns(&mut self, ns: u32) {
+        tokio::time::sleep(std::time::Duration::from_nanos(u64::from(ns))).await;
     }
 }
