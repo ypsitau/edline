@@ -1,10 +1,18 @@
-//! UART Echo example using Embassy and async/await.
+//! Test appllication for edline on Raspberry Pi Pico with UART and TFT LCD.
 //!
 //! ## Pin Assignment
 //! | Raspberry Pi Pico | Function |
 //! |------------------|----------|
 //! | GPIO0            | UART TX  |
 //! | GPIO1            | UART RX  |
+//! | GPIO6            | TFT LCD RESET |
+//! | GPIO7            | TFT LCD DC |
+//! | GPIO8            | TFT LCD CS |
+//! | GPIO9            | TFT LCD BL |
+//! | GPIO10           | TFT LCD CLK |
+//! | GPIO11           | TFT LCD MOSI |
+//! | GPIO14           | I2C SDA |
+//! | GPIO15           | I2C SCL |
 #![no_std]
 #![no_main]
 

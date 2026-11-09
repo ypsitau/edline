@@ -49,27 +49,31 @@ where
     DisplayModel: mipidsi::models::Model<ColorFormat = eg::pixelcolor::Rgb565>,
 {
     let p = rp::init(Default::default());
+    let (pin_uart0_tx, pin_uart0_rx) = (p.PIN_0, p.PIN_1);
+    let (pin_display_reset, pin_display_dc, pin_display_cs, pin_display_bl)
+        = (p.PIN_6, p.PIN_7, p.PIN_8, p.PIN_9);
+    let (pin_spi1_clk, pin_spi1_mosi) = (p.PIN_10, p.PIN_11);
+    let pin_sw = p.PIN_16;
+    let (pin_i2c1_sda, pin_i2c1_scl) = (p.PIN_14, p.PIN_15);
     let mutex_i2c1 = {
         type I2c1 = rp::i2c::I2c<'static, rp::peripherals::I2C1, rp::i2c::Blocking>;
-        let (pin_sda, pin_scl) = (p.PIN_14, p.PIN_15);
         let mut config = rp::i2c::Config::default();
         config.frequency = 400_000;
         static STATIC_CELL: StaticCell<BlockingMutexNoop<RefCell<I2c1>>> = StaticCell::new();
         STATIC_CELL.init(BlockingMutexNoop::new(RefCell::new(
-            I2c1::new_blocking(p.I2C1, pin_scl, pin_sda, config))))
+            I2c1::new_blocking(p.I2C1, pin_i2c1_scl, pin_i2c1_sda, config))))
     };
     let mutex_spi1 = {
         type Spi = rp::spi::Spi<'static, rp::peripherals::SPI1, rp::spi::Blocking>;
-        let (pin_clk, pin_mosi) = (p.PIN_10, p.PIN_11);
         static STATIC_CELL: StaticCell<BlockingMutexNoop<RefCell<Spi>>> = StaticCell::new();
         STATIC_CELL.init(BlockingMutexNoop::new(RefCell::new(
-            Spi::new_blocking_txonly(p.SPI1, pin_clk, pin_mosi, Default::default()))))
+            Spi::new_blocking_txonly(p.SPI1, pin_spi1_clk, pin_spi1_mosi, Default::default()))))
     };
-    let pin_display_reset = rp::gpio::Output::new(p.PIN_6, rp::gpio::Level::Low);
-    let pin_display_dc = rp::gpio::Output::new(p.PIN_7, rp::gpio::Level::Low);
-    let pin_display_cs = rp::gpio::Output::new(p.PIN_8, rp::gpio::Level::High);
-    let pin_display_bl = rp::gpio::Output::new(p.PIN_9, rp::gpio::Level::High);
-    let pin_sw = rp::gpio::Input::new(p.PIN_16, rp::gpio::Pull::Up);
+    let pin_display_reset = rp::gpio::Output::new(pin_display_reset, rp::gpio::Level::Low);
+    let pin_display_dc = rp::gpio::Output::new(pin_display_dc, rp::gpio::Level::Low);
+    let pin_display_cs = rp::gpio::Output::new(pin_display_cs, rp::gpio::Level::High);
+    let pin_display_bl = rp::gpio::Output::new(pin_display_bl, rp::gpio::Level::High);
+    let pin_sw = rp::gpio::Input::new(pin_sw, rp::gpio::Pull::Up);
     let mipidsi_spi_interface = {
         let spi_dev = {
             let mut config = rp::spi::Config::default();
@@ -91,7 +95,6 @@ where
         .init(&mut emb::time::Delay).unwrap();
     let i2c_devs = core::array::from_fn(|_| emb::hal::shared_bus::blocking::i2c::I2cDevice::new(mutex_i2c1));
     let uart = {
-        let (pin_tx, pin_rx) = (p.PIN_0, p.PIN_1);
         let tx_buffer = {
             const BUFSIZE: usize = 64;
             static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
@@ -103,7 +106,7 @@ where
             STATIC_CELL.init([0u8; BUFSIZE])
         };
         let config = rp::uart::Config::default();
-        rp::uart::BufferedUart::new(p.UART0, pin_tx, pin_rx, Irqs, tx_buffer, rx_buffer, config)
+        rp::uart::BufferedUart::new(p.UART0, pin_uart0_tx, pin_uart0_rx, Irqs, tx_buffer, rx_buffer, config)
     };
     let (uart_tx, uart_rx) = uart.split();
     BoardWithMipidsi { display, pin_display_bl, pin_sw, i2c_devs, uart_tx, uart_rx }
