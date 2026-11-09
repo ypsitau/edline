@@ -57,26 +57,29 @@ where
         let text_style = eg::text::TextStyleBuilder::new()
             .alignment(eg::text::Alignment::Left).baseline(eg::text::Baseline::Top).build();
         let character_style = eg::mono_font::MonoTextStyleBuilder::new()
-            .font(self.font).text_color(ColorType::GREEN).build();
+            .font(self.font).text_color(ColorType::GREEN).background_color(ColorType::BLACK).build();
         for x in data {
-            if *x & 0xC0 == 0x80 {
-                self.char_buf.push(*x).ok();
-            } else {
-                if !self.char_buf.is_empty() {
-                    eg::text::Text::with_text_style(
-                        str::from_utf8(&self.char_buf).unwrap_or(""), self.pt, character_style, text_style)
-                        .draw(&mut self.target).ok();
-                    self.pt.x += self.x_advance;
-                    self.clear_char_buf();
-                }
-                if *x & 0xC0 == 0xC0 {
-                    self.char_buf.push(*x).ok();
-                } else {
-                    eg::text::Text::with_text_style(
-                        str::from_utf8(&[*x]).unwrap_or(""), self.pt, character_style, text_style)
+            let x = *x;
+            if x & 0xC0 == 0x80 {
+                self.char_buf.push(x).ok();
+                continue;
+            }
+            if !self.char_buf.is_empty() {
+                if let Ok(s) = str::from_utf8(&self.char_buf) {
+                    eg::text::Text::with_text_style(s, self.pt, character_style, text_style)
                         .draw(&mut self.target).ok();
                     self.pt.x += self.x_advance;
                 }
+                self.clear_char_buf();
+            }
+            if x == b'\n' {
+                self.new_line().await;
+            } else if x & 0xC0 == 0xC0 {
+                self.char_buf.push(x).ok();
+            } else if let Ok(s) = str::from_utf8(&[x]) {
+                eg::text::Text::with_text_style(s, self.pt, character_style, text_style)
+                    .draw(&mut self.target).ok();
+                self.pt.x += self.x_advance;
             }
         }
         self.refresh();
@@ -92,16 +95,14 @@ where
         self.pt.x += self.x_advance * n as i32;
     }
     async fn delete_to_line_end(&mut self) {
-        eg::primitives::Rectangle::new(
-            self.pt,
-            eg::primitives::Size::new(
-                (self.target.bounding_box().size.width - self.pt.x as u32) as u32,
-                self.y_advance as u32,
-            ),
-        )
-        .into_styled(eg::primitives::PrimitiveStyle::with_fill(ColorType::BLACK))
-        .draw(&mut self.target)
-        .ok();
+        let size = Size::new(
+            (self.target.bounding_box().size.width - self.pt.x as u32) as u32,
+            self.y_advance as u32);
+
+        eg::primitives::Rectangle::new(self.pt, size)
+            .into_styled(eg::primitives::PrimitiveStyle::with_fill(ColorType::BLACK))
+            .draw(&mut self.target).ok();
+        self.refresh();
     }
 
 }
