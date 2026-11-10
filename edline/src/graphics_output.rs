@@ -3,14 +3,14 @@ use embedded_graphics as eg;
 use embedded_graphics::mono_font::ascii as eg_fonts;
 use embedded_graphics::prelude::*;
 
-/// Text output with a blinking underline cursor.
-///
-/// Two black pixel rows below each text row are reserved for the cursor.
-/// The caller must poll [`crate::Editor::wait_cursor_blink`] while waiting for
-/// input; [`crate::simple_task_graphics`] does this automatically.
+pub struct Config {
+    pub cursor_blinking_interval: u32,
+}
+
 pub struct GraphicsOutput<DrawTarget, DelayNs, FnRefresh> {
     target: DrawTarget,
     delay: DelayNs,
+    config: Config,
     fn_refresh: FnRefresh,
     font: &'static eg::mono_font::MonoFont<'static>,
     char_buf: heapless::Vec<u8, 8>,
@@ -27,11 +27,12 @@ where
     DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
 {
-    pub fn new(target: DrawTarget, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
+    pub fn new(target: DrawTarget, delay: DelayNs, config: Config, fn_refresh: FnRefresh) -> Self {
         let font = &eg_fonts::FONT_10X20;
         Self {
             target,
             delay,
+            config,
             fn_refresh,
             font,
             char_buf: heapless::Vec::new(),

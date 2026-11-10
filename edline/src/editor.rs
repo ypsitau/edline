@@ -9,6 +9,7 @@ use crate::graphics_output::GraphicsOutput;
 use embedded_graphics as eg;
 use embedded_hal_async as hal_async;
 use embedded_keycode as keycode;
+pub use crate::graphics_output::Config as GraphicsConfig;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
@@ -395,9 +396,10 @@ where
         history_buf: &'a mut [u8],
         target: DrawTarget,
         delay: DelayNs,
+        config: GraphicsConfig,
         fn_refresh: FnRefresh,
     ) -> Self {
-        Self::new(line_buf, history_buf, GraphicsOutput::new(target, delay, fn_refresh))
+        Self::new(line_buf, history_buf, GraphicsOutput::new(target, delay, config, fn_refresh))
     }
 }
 
@@ -437,7 +439,10 @@ where
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
-    let editor = Editor::with_graphics_output(line_buf, history_buf, target, delay, fn_refresh);
+    let config = GraphicsConfig {
+        cursor_blinking_interval: 500,
+    };
+    let editor = Editor::with_graphics_output(line_buf, history_buf, target, delay, config, fn_refresh);
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
