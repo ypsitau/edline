@@ -13,7 +13,9 @@ edline = { path = "edline" }
 embedded-io-async = { version = "0.7.0" }
 heapless = { version = "0.9.3" }
 static_cell = { version = "2.1.1" }
-serkey = { version = "0.1.4" }
+embedded-keycode = { version = "0.2.0" }
+serkey = { version = "0.2.0" }
+#serkey = { git = "https://github.com/ypsitau/serkey.git" }
 unicode-width = { version = "0.2.3", features = ["no_std"] }
 
 embedded-graphics = { version = "0.8.2" }

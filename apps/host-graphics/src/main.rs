@@ -40,7 +40,8 @@ async fn main() { //-> Result<(), core::convert::Infallible> {
             }
         }
     };
-    let task_edline = edline::simple_task_graphics(target, stdin, true, ThreadDelay,
+    let key_reader = serkey::Reader::new(stdin);
+    let task_edline = edline::simple_task_graphics(target, key_reader, true, ThreadDelay,
         |target| request_update(&update_sender, target));
     tokio::select! {
         _ = task_window => {}

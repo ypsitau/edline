@@ -13,6 +13,7 @@ embedded-hal-async = { workspace = true }
 embedded-io-async = { workspace = true }
 heapless = { workspace = true }
 static_cell = { workspace = true }
+embedded-keycode = { workspace = true }
 serkey = { workspace = true }
 unicode-width = { workspace = true }
 

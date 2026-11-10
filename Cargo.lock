@@ -250,6 +250,7 @@ dependencies = [
  "embedded-graphics",
  "embedded-hal-async",
  "embedded-io-async",
+ "embedded-keycode",
  "heapless",
  "serkey",
  "static_cell",
@@ -364,9 +365,9 @@ dependencies = [
 
 [[package]]
 name = "embedded-keycode"
-version = "0.1.5"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfb9e7498807d58296f915f697dced7c4a268df21229c3ecb3555d5c27f6aa22"
+checksum = "e343c46aec5a1ff115e9fda48e70a9ad8383d86bc559927a35d54f4b961fcacd"
 
 [[package]]
 name = "embedded-text"
@@ -1039,9 +1040,9 @@ checksum = "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd"
 
 [[package]]
 name = "serkey"
-version = "0.1.4"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6640c608ac3661e059d07e185ca82d640a1603ae9c732be4e8cf3ac8be0f208"
+checksum = "70cc58b5b781a5959f8542bb53d0158538210d57aa7a1939a4136b39340e452c"
 dependencies = [
  "embedded-io",
  "embedded-io-async",

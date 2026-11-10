@@ -8,6 +8,7 @@ use crate::stream_output::SerialOutput;
 use crate::graphics_output::GraphicsOutput;
 use embedded_graphics as eg;
 use embedded_hal_async as hal_async;
+use embedded_keycode as keycode;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
@@ -384,7 +385,7 @@ where
 }
 
 #[allow(dead_code)]
-pub async fn simple_task_stream(writer: impl io_async::Write, reader: impl io_async::Read, enable_break: bool) {
+pub async fn simple_task_stream(writer: impl io_async::Write, key_reader: impl keycode::ReadKey, enable_break: bool) {
     let line_buf = {
         const BUFSIZE: usize = 128;
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
@@ -396,16 +397,16 @@ pub async fn simple_task_stream(writer: impl io_async::Write, reader: impl io_as
         STATIC_CELL.init([0u8; BUFSIZE])
     };
     let editor = Editor::with_serial_output(line_buf, history_buf, writer);
-    simple_task_common(editor, reader, enable_break).await;
+    simple_task_common(editor, key_reader, enable_break).await;
 }
 
 #[allow(dead_code)]
-pub async fn simple_task_graphics<DrawTarget, ColorType, Reader, DelayNs, FnRefresh>
-    (target: DrawTarget, reader: Reader, enable_break: bool, delay: DelayNs, fn_refresh: FnRefresh)
+pub async fn simple_task_graphics<DrawTarget, ColorType, KeyReader, DelayNs, FnRefresh>
+    (target: DrawTarget, key_reader: KeyReader, enable_break: bool, delay: DelayNs, fn_refresh: FnRefresh)
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     ColorType: eg::pixelcolor::RgbColor,
-    Reader: io_async::Read,
+    KeyReader: keycode::ReadKey,
     DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
 {
@@ -420,12 +421,12 @@ where
         STATIC_CELL.init([0u8; BUFSIZE])
     };
     let editor = Editor::with_graphics_output(line_buf, history_buf, target, delay, fn_refresh);
-    simple_task_common(editor, reader, enable_break).await;
+    simple_task_common(editor, key_reader, enable_break).await;
 }
 
-pub async fn simple_task_common(mut editor: Editor<'_, impl Output>, mut reader: impl io_async::Read, enable_break: bool) {
+pub async fn simple_task_common(mut editor: Editor<'_, impl Output>, mut reader: impl keycode::ReadKey, enable_break: bool) {
     let mut sbuf_result: heapless::String<128> = heapless::String::new();
-    let mut serkey_reader = serkey::Reader::new();
+    //let mut serkey_reader = serkey::Reader::new(reader);
     let prompt = "> ";
     editor.init().await;
     editor.print(prompt).await;
@@ -433,7 +434,7 @@ pub async fn simple_task_common(mut editor: Editor<'_, impl Output>, mut reader:
     let mut sbuf_completion: heapless::String<128> = heapless::String::new();
     loop {
         let key = {
-            let mut read = core::pin::pin!(serkey_reader.read_key(&mut reader));
+            let mut read = core::pin::pin!(reader.read_key());
             loop {
                 let mut blink = core::pin::pin!(editor.wait_cursor_blink());
                 let result = core::future::poll_fn(|cx| {
