@@ -18,6 +18,7 @@ pub struct GraphicsOutput<DrawTarget, DelayNs, FnRefresh> {
     x_advance: i32,
     y_advance: i32,
     cursor_visible: bool,
+    cursor_blinking_toggle: bool,
 }
 
 impl<DrawTarget, DelayNs, FnRefresh> GraphicsOutput<DrawTarget, DelayNs, FnRefresh>
@@ -38,6 +39,7 @@ where
             x_advance: font.character_size.width as i32,
             y_advance: font.character_size.height as i32 + 2,
             cursor_visible: false,
+            cursor_blinking_toggle: false,
         }
     }
     fn clear_char_buf(&mut self) {
@@ -61,14 +63,16 @@ where
         eg::primitives::Rectangle::new(position, Size::new(self.font.character_size.width, 2))
             .into_styled(eg::primitives::PrimitiveStyle::with_fill(color))
             .draw(&mut self.target).unwrap_or_else(|_| panic!("failed to draw cursor"));
-        self.cursor_visible = visible;
     }
 
     fn hide_cursor(&mut self) {
-        if self.cursor_visible { self.draw_cursor(false); }
+        if self.cursor_visible && self.cursor_blinking_toggle { self.draw_cursor(false); }
+        self.cursor_visible = false;
     }
-
+    
     fn show_cursor(&mut self) {
+        self.cursor_visible = true;
+        self.cursor_blinking_toggle = true;
         self.draw_cursor(true);
         self.refresh();
     }
@@ -154,9 +158,12 @@ where
         self.show_cursor();
     }
 
-    async fn wait_cursor_blink(&mut self) {
+    async fn blink_cursor(&mut self) {
         self.delay.delay_ms(500).await;
-        self.draw_cursor(!self.cursor_visible);
-        self.refresh();
+        if self.cursor_visible {
+            self.cursor_blinking_toggle = !self.cursor_blinking_toggle;
+            self.draw_cursor(self.cursor_blinking_toggle);
+            self.refresh();
+        }
     }
 }

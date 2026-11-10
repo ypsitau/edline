@@ -28,8 +28,7 @@ pub trait Output {
     fn move_cursor_left_n(&mut self, n: usize) -> impl Future<Output = ()>;
     fn move_cursor_right_n(&mut self, n: usize) -> impl Future<Output = ()>;
     fn delete_to_line_end(&mut self) -> impl Future<Output = ()>;
-    /// Waits for and performs the next cursor blink, if supported by this output.
-    fn wait_cursor_blink(&mut self) -> impl Future<Output = ()> {
+    fn blink_cursor(&mut self) -> impl Future<Output = ()> {
         core::future::pending()
     }
 }
@@ -137,6 +136,25 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         event
     }
 
+    pub async fn read_key<ReadKey>(&mut self, reader: &mut ReadKey) -> Result<serkey::Key, ReadKey::Error>
+    where ReadKey: keycode::ReadKey
+    {
+        let mut read = core::pin::pin!(reader.read_key());
+        loop {
+            let mut blink = core::pin::pin!(self.output.blink_cursor());
+            let result = core::future::poll_fn(|cx| {
+                if let core::task::Poll::Ready(result) = read.as_mut().poll(cx) {
+                    return core::task::Poll::Ready(Some(result));
+                }
+                if blink.as_mut().poll(cx).is_ready() {
+                    return core::task::Poll::Ready(None);
+                }
+                core::task::Poll::Pending
+            }).await;
+            if let Some(result) = result { break result; }
+        }
+    }
+
     async fn request_completition(&mut self, reverse: bool) -> Event {
         if self.idx_completion == Self::IDX_NONE {
             self.move_cursor_to_line_end().await;
@@ -170,11 +188,10 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     }
 
     /// Waits for and performs the next cursor blink while the editor is idle.
-    ///
     /// Custom input loops should poll this concurrently with their input future.
-    pub async fn wait_cursor_blink(&mut self) {
-        self.output.wait_cursor_blink().await;
-    }
+    //pub async fn wait_cursor_blink(&mut self) {
+    //    self.output.wait_cursor_blink().await;
+    //}
 
     pub async fn enter(&mut self) {
         let (idx_start, idx_end) = Self::strip(&self.line_buf[..self.idx_end]);
@@ -426,29 +443,29 @@ where
 
 pub async fn simple_task_common(mut editor: Editor<'_, impl Output>, mut reader: impl keycode::ReadKey, enable_break: bool) {
     let mut sbuf_result: heapless::String<128> = heapless::String::new();
-    //let mut serkey_reader = serkey::Reader::new(reader);
     let prompt = "> ";
     editor.init().await;
     editor.print(prompt).await;
     let mut cnt_completition = 0;
     let mut sbuf_completion: heapless::String<128> = heapless::String::new();
     loop {
-        let key = {
-            let mut read = core::pin::pin!(reader.read_key());
-            loop {
-                let mut blink = core::pin::pin!(editor.wait_cursor_blink());
-                let result = core::future::poll_fn(|cx| {
-                    if let core::task::Poll::Ready(result) = read.as_mut().poll(cx) {
-                        return core::task::Poll::Ready(Some(result));
-                    }
-                    if blink.as_mut().poll(cx).is_ready() {
-                        return core::task::Poll::Ready(None);
-                    }
-                    core::task::Poll::Pending
-                }).await;
-                if let Some(result) = result { break result; }
-            }
-        };
+        //let key = {
+        //    let mut read = core::pin::pin!(reader.read_key());
+        //    loop {
+        //        let mut blink = core::pin::pin!(editor.wait_cursor_blink());
+        //        let result = core::future::poll_fn(|cx| {
+        //            if let core::task::Poll::Ready(result) = read.as_mut().poll(cx) {
+        //                return core::task::Poll::Ready(Some(result));
+        //            }
+        //            if blink.as_mut().poll(cx).is_ready() {
+        //                return core::task::Poll::Ready(None);
+        //            }
+        //            core::task::Poll::Pending
+        //        }).await;
+        //        if let Some(result) = result { break result; }
+        //    }
+        //};
+        let key = editor.read_key(&mut reader).await;
         if let Ok(key) = key {
             if enable_break {
                 if let serkey::Key::CookedCtrl(serkey::Ctrl::C) = key { break; }
