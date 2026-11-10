@@ -366,12 +366,12 @@ impl<'a, Writer: io_async::Write> Editor<'a, SerialOutput<Writer>> {
     }
 }
 
-impl<'a, DrawTarget, ColorType, DelayNs, FnRefresh> Editor<'a, GraphicsOutput<DrawTarget, ColorType, DelayNs, FnRefresh>>
+impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType> Editor<'a, GraphicsOutput<DrawTarget, DelayNs, FnRefresh>>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
-    ColorType: eg::pixelcolor::RgbColor,
     DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
+    ColorType: eg::pixelcolor::RgbColor,
 {
     pub fn with_graphics_output(
         line_buf: &'a mut [u8],

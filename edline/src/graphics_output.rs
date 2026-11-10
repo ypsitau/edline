@@ -8,9 +8,8 @@ use embedded_graphics::prelude::*;
 /// Two black pixel rows below each text row are reserved for the cursor.
 /// The caller must poll [`crate::Editor::wait_cursor_blink`] while waiting for
 /// input; [`crate::simple_task_graphics`] does this automatically.
-pub struct GraphicsOutput<DrawTarget, ColorType, DelayNs, FnRefresh> {
+pub struct GraphicsOutput<DrawTarget, DelayNs, FnRefresh> {
     target: DrawTarget,
-    color_type: core::marker::PhantomData<ColorType>,
     delay: DelayNs,
     fn_refresh: FnRefresh,
     font: &'static eg::mono_font::MonoFont<'static>,
@@ -21,7 +20,7 @@ pub struct GraphicsOutput<DrawTarget, ColorType, DelayNs, FnRefresh> {
     cursor_visible: bool,
 }
 
-impl<DrawTarget, ColorType, DelayNs, FnRefresh> GraphicsOutput<DrawTarget, ColorType, DelayNs, FnRefresh>
+impl<DrawTarget, DelayNs, FnRefresh> GraphicsOutput<DrawTarget, DelayNs, FnRefresh>
 where
     DrawTarget: eg::draw_target::DrawTarget,
     DelayNs: hal_async::delay::DelayNs,
@@ -31,7 +30,6 @@ where
         let font = &eg_fonts::FONT_10X20;
         Self {
             target,
-            color_type: core::marker::PhantomData,
             delay,
             fn_refresh,
             font,
@@ -50,12 +48,12 @@ where
     }
 }
 
-impl<DrawTarget, ColorType, DelayNs, FnRefresh> GraphicsOutput<DrawTarget, ColorType, DelayNs, FnRefresh>
+impl<DrawTarget, DelayNs, FnRefresh, ColorType> GraphicsOutput<DrawTarget, DelayNs, FnRefresh>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
-    ColorType: eg::pixelcolor::RgbColor,
-    DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
+    DelayNs: hal_async::delay::DelayNs,
+    ColorType: eg::pixelcolor::RgbColor,
 {
     fn draw_cursor(&mut self, visible: bool) {
         let color = if visible { ColorType::GREEN } else { ColorType::BLACK };
@@ -76,13 +74,13 @@ where
     }
 }
 
-impl<DrawTarget, ColorType, DelayNs, FnRefresh> crate::editor::Output
-    for GraphicsOutput<DrawTarget, ColorType, DelayNs, FnRefresh>
+impl<DrawTarget, DelayNs, FnRefresh, ColorType> crate::editor::Output
+    for GraphicsOutput<DrawTarget, DelayNs, FnRefresh>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     DelayNs: hal_async::delay::DelayNs,
-    ColorType: eg::pixelcolor::RgbColor,
     FnRefresh: FnMut(&mut DrawTarget),
+    ColorType: eg::pixelcolor::RgbColor,
 {
     type Error = ();
 
