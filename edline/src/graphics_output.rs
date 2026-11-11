@@ -7,6 +7,13 @@ pub struct Config {
     pub cursor_blinking_interval: u32,
 }
 
+impl Config {
+    pub fn default() -> Self {
+        Self {
+            cursor_blinking_interval: 500,
+        }
+    }
+}
 pub struct GraphicsOutput<DrawTarget, DelayNs, FnRefresh> {
     target: DrawTarget,
     delay: DelayNs,
@@ -27,7 +34,7 @@ where
     DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
 {
-    pub fn new(target: DrawTarget, delay: DelayNs, config: Config, fn_refresh: FnRefresh) -> Self {
+    pub fn new(target: DrawTarget, config: Config, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
         let font = &eg_fonts::FONT_10X20;
         Self {
             target,
@@ -160,7 +167,7 @@ where
     }
 
     async fn blink_cursor(&mut self) {
-        self.delay.delay_ms(500).await;
+        self.delay.delay_ms(self.config.cursor_blinking_interval).await;
         if self.cursor_visible {
             self.cursor_blinking_toggle = !self.cursor_blinking_toggle;
             self.draw_cursor(self.cursor_blinking_toggle);

@@ -4,11 +4,12 @@ use embedded_io_async as io_async;
 use heapless::String;
 use static_cell::StaticCell;
 use crate::round_buffer::RoundBuffer;
-use crate::stream_output::SerialOutput;
+use crate::console_output::ConsoleOutput;
 use crate::graphics_output::GraphicsOutput;
 use embedded_graphics as eg;
 use embedded_hal_async as hal_async;
 use embedded_keycode as keycode;
+pub use crate::console_output::Config as ConsoleConfig;
 pub use crate::graphics_output::Config as GraphicsConfig;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -378,9 +379,9 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     }
 }
 
-impl<'a, Writer: io_async::Write> Editor<'a, SerialOutput<Writer>> {
-    pub fn with_serial_output(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer) -> Self {
-        Self::new(line_buf, history_buf, SerialOutput::new(writer))
+impl<'a, Writer: io_async::Write> Editor<'a, ConsoleOutput<Writer>> {
+    pub fn with_serial_output(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer, config: ConsoleConfig) -> Self {
+        Self::new(line_buf, history_buf, ConsoleOutput::new(writer, config))
     }
 }
 
@@ -391,15 +392,9 @@ where
     FnRefresh: FnMut(&mut DrawTarget),
     ColorType: eg::pixelcolor::RgbColor,
 {
-    pub fn with_graphics_output(
-        line_buf: &'a mut [u8],
-        history_buf: &'a mut [u8],
-        target: DrawTarget,
-        delay: DelayNs,
-        config: GraphicsConfig,
-        fn_refresh: FnRefresh,
-    ) -> Self {
-        Self::new(line_buf, history_buf, GraphicsOutput::new(target, delay, config, fn_refresh))
+    pub fn with_graphics_output(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
+        target: DrawTarget, config: GraphicsConfig, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
+        Self::new(line_buf, history_buf, GraphicsOutput::new(target, config, delay, fn_refresh))
     }
 }
 
@@ -415,7 +410,9 @@ pub async fn simple_task_stream(writer: impl io_async::Write, key_reader: impl k
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
-    let editor = Editor::with_serial_output(line_buf, history_buf, writer);
+    
+    let config = ConsoleConfig::default();
+    let editor = Editor::with_serial_output(line_buf, history_buf, writer, config);
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
@@ -439,10 +436,8 @@ where
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
-    let config = GraphicsConfig {
-        cursor_blinking_interval: 500,
-    };
-    let editor = Editor::with_graphics_output(line_buf, history_buf, target, delay, config, fn_refresh);
+    let config = GraphicsConfig::default();
+    let editor = Editor::with_graphics_output(line_buf, history_buf, target, config, delay, fn_refresh);
     simple_task_common(editor, key_reader, enable_break).await;
 }
 

@@ -45,10 +45,10 @@
 
 mod editor;
 mod round_buffer;
-mod stream_output;
+mod console_output;
 mod graphics_output;
 
 pub use editor::*;
 pub use round_buffer::RoundBuffer;
-pub use stream_output::SerialOutput;
+pub use console_output::ConsoleOutput;
 pub use graphics_output::GraphicsOutput;

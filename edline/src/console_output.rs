@@ -2,19 +2,28 @@ use heapless::String;
 use core::fmt::Write as _;
 use embedded_io_async as io_async;
 
-pub struct SerialOutput<Writer> {
-    writer: Writer,
+pub struct Config {
 }
 
-impl<Writer: io_async::Write> SerialOutput<Writer> {
-    pub fn new(writer: Writer) -> Self {
-        Self { writer }
+impl Config {
+    pub fn default() -> Self {
+        Self {}
     }
 }
 
-impl<Writer: io_async::Write> crate::editor::Output for SerialOutput<Writer> {
-    type Error = Writer::Error;
+pub struct ConsoleOutput<Writer> {
+    writer: Writer,
+    _config: Config,
+}
 
+impl<Writer: io_async::Write> ConsoleOutput<Writer> {
+    pub fn new(writer: Writer, config: Config) -> Self {
+        Self { writer, _config: config }
+    }
+}
+
+impl<Writer: io_async::Write> crate::editor::Output for ConsoleOutput<Writer> {
+    type Error = Writer::Error;
 
     async fn init(&mut self) {}
     
