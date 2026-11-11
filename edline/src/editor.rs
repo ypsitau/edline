@@ -385,16 +385,16 @@ impl<'a, Writer: io_async::Write> Editor<'a, ConsoleOutput<Writer>> {
     }
 }
 
-impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType> Editor<'a, GraphicsOutput<DrawTarget, DelayNs, FnRefresh>>
+impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType> Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh>>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
     ColorType: eg::pixelcolor::RgbColor,
 {
-    pub fn with_graphics_output(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
+    pub fn with_graphics_output(line_buf: &'a mut [u8], history_buf: &'a mut [u8], rollback_buf: &'a mut [u8],
         target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
-        Self::new(line_buf, history_buf, GraphicsOutput::new(target, config, delay, fn_refresh))
+        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, config, delay, fn_refresh))
     }
 }
 
@@ -421,7 +421,7 @@ pub async fn simple_task_graphics<DrawTarget, ColorType, KeyReader, DelayNs, FnR
     (target: DrawTarget, key_reader: KeyReader, enable_break: bool, delay: DelayNs, fn_refresh: FnRefresh)
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
-    ColorType: eg::pixelcolor::RgbColor,
+    ColorType: eg::pixelcolor::RgbColor + From<eg::pixelcolor::Rgb888>,
     KeyReader: keycode::ReadKey,
     DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
@@ -436,8 +436,15 @@ where
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
-    let config = GraphicsConfig::<ColorType>::default();
-    let editor = Editor::with_graphics_output(line_buf, history_buf, target, config, delay, fn_refresh);
+    let rollback_buf = {
+        static STATIC_CELL: StaticCell<[u8; 1024]> = StaticCell::new();
+        STATIC_CELL.init([0; 1024])
+    };
+    let config = GraphicsConfig::<ColorType>::default()
+        .font(&eg::mono_font::ascii::FONT_7X13_BOLD)
+        .text_color(ColorType::WHITE)
+        .background_color(ColorType::from(eg::pixelcolor::Rgb888::new(0, 0, 32)));
+    let editor = Editor::with_graphics_output(line_buf, history_buf, rollback_buf, target, config, delay, fn_refresh);
     simple_task_common(editor, key_reader, enable_break).await;
 }
 

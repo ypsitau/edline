@@ -1,7 +1,8 @@
 use embedded_hal_async as hal_async;
 use embedded_graphics as eg;
-use embedded_graphics::mono_font::ascii as eg_fonts;
 use embedded_graphics::prelude::*;
+use static_cell::StaticCell;
+use crate::round_buffer::RoundBuffer;
 
 pub struct Config<ColorType = eg::pixelcolor::Rgb565> {
     pub cursor_blinking_interval: u32,
@@ -14,27 +15,46 @@ impl<ColorType: eg::pixelcolor::RgbColor> Config<ColorType> {
     pub fn default() -> Self {
         Self {
             cursor_blinking_interval: 500,
-            font: &eg_fonts::FONT_10X20,
-            text_color: ColorType::GREEN,
+            font: &eg::mono_font::ascii::FONT_6X10,
+            text_color: ColorType::WHITE,
             background_color: ColorType::BLACK,
         }
     }
+    pub fn cursor_blinking_interval(mut self, cursor_blinking_interval: u32) -> Self {
+        self.cursor_blinking_interval = cursor_blinking_interval;
+        self
+    }
+    pub fn font(mut self, font: &'static eg::mono_font::MonoFont<'static>) -> Self {
+        self.font = font;
+        self
+    }
+    pub fn text_color(mut self, text_color: ColorType) -> Self {
+        self.text_color = text_color;
+        self
+    }
+    pub fn background_color(mut self, background_color: ColorType) -> Self {
+        self.background_color = background_color;
+        self
+    }
 }
 
-pub struct GraphicsOutput<DrawTarget: eg::draw_target::DrawTarget, DelayNs, FnRefresh> {
+pub struct GraphicsOutput<'a, DrawTarget: eg::draw_target::DrawTarget, DelayNs, FnRefresh> {
     target: DrawTarget,
+    rollback_buf: RoundBuffer<'a>,
+    config: Config<DrawTarget::Color>,
     delay: DelayNs,
-    config: Config<<DrawTarget as eg::draw_target::DrawTarget>::Color>,
     fn_refresh: FnRefresh,
     char_buf: heapless::Vec<u8, 8>,
     pt: Point,
     x_advance: i32,
     y_advance: i32,
+    n_cols: i32,
+    n_rows: i32,
     cursor_visible: bool,
     cursor_blinking_toggle: bool,
 }
 
-impl<DrawTarget, DelayNs, FnRefresh> GraphicsOutput<DrawTarget, DelayNs, FnRefresh>
+impl<'a, DrawTarget, DelayNs, FnRefresh> GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh>
 where
     DrawTarget: eg::draw_target::DrawTarget,
     DelayNs: hal_async::delay::DelayNs,
@@ -42,20 +62,27 @@ where
 {
     pub fn new(
         target: DrawTarget,
+        rollback_buf: &'a mut [u8],
         config: Config<<DrawTarget as eg::draw_target::DrawTarget>::Color>,
         delay: DelayNs,
         fn_refresh: FnRefresh,
     ) -> Self {
         let font = config.font;
+        let x_advance = font.character_size.width as i32;
+        let y_advance = font.character_size.height as i32 + 2;
+        let size = target.bounding_box().size;
+        let n_cols = size.width as i32 / x_advance;
+        let n_rows = size.height as i32 / y_advance;
         Self {
             target,
-            delay,
+            rollback_buf: RoundBuffer::new(rollback_buf),
             config,
+            delay,
             fn_refresh,
             char_buf: heapless::Vec::new(),
             pt: Point::new(0, 0),
-            x_advance: font.character_size.width as i32,
-            y_advance: font.character_size.height as i32 + 2,
+            x_advance, y_advance,
+            n_cols, n_rows,
             cursor_visible: false,
             cursor_blinking_toggle: false,
         }
@@ -68,7 +95,7 @@ where
     }
 }
 
-impl<DrawTarget, DelayNs, FnRefresh, ColorType> GraphicsOutput<DrawTarget, DelayNs, FnRefresh>
+impl<DrawTarget, DelayNs, FnRefresh, ColorType> GraphicsOutput<'_, DrawTarget, DelayNs, FnRefresh>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     FnRefresh: FnMut(&mut DrawTarget),
@@ -97,7 +124,7 @@ where
 }
 
 impl<DrawTarget, DelayNs, FnRefresh, ColorType> crate::editor::Output
-    for GraphicsOutput<DrawTarget, DelayNs, FnRefresh>
+    for GraphicsOutput<'_, DrawTarget, DelayNs, FnRefresh>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     DelayNs: hal_async::delay::DelayNs,
@@ -149,28 +176,31 @@ where
 
         self.show_cursor();
     }
+
     async fn new_line(&mut self) {
         self.hide_cursor();
         self.pt.x = 0;
         self.pt.y += self.y_advance;
         self.show_cursor();
     }
+
     async fn move_cursor_left_n(&mut self, n: usize) {
         self.hide_cursor();
         self.pt.x -= self.x_advance * n as i32;
         self.show_cursor();
     }
+
     async fn move_cursor_right_n(&mut self, n: usize) {
         self.hide_cursor();
         self.pt.x += self.x_advance * n as i32;
         self.show_cursor();
     }
+
     async fn delete_to_line_end(&mut self) {
         self.hide_cursor();
         let size = Size::new(
             self.target.bounding_box().size.width.saturating_sub(self.pt.x.max(0) as u32),
             self.y_advance as u32);
-
         eg::primitives::Rectangle::new(self.pt, size)
             .into_styled(eg::primitives::PrimitiveStyle::with_fill(self.config.background_color))
             .draw(&mut self.target).ok();
