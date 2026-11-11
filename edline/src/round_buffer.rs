@@ -48,7 +48,7 @@ impl<'a> RoundBuffer<'a> {
                     self.n_items -= 1;
                 }
             }
-            self.buf[self.idx_write..idx_write_end - 1].copy_from_slice(src);
+            self.buf[self.idx_write..self.idx_write + src.len()].copy_from_slice(src);
             self.buf[idx_write_end - 1] = 0x00;
             self.idx_bottom = self.idx_write;
             if self.n_items == 0 { self.idx_top = self.idx_write; }
