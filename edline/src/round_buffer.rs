@@ -5,7 +5,7 @@ pub struct RoundBuffer<'a> {
     idx_write: usize,
     idx_cursor: usize,
     buf_full: bool,
-    nitems: usize,
+    n_items: usize,
 }
 
 impl<'a> RoundBuffer<'a> {
@@ -13,12 +13,12 @@ impl<'a> RoundBuffer<'a> {
 
     pub fn new(buf: &'a mut [u8]) -> Self {
         buf.fill(0x00);
-        Self { buf, idx_top: 0, idx_bottom: 0, idx_write: 0, idx_cursor: Self::IDX_NONE, buf_full: false, nitems: 0 }
+        Self { buf, idx_top: 0, idx_bottom: 0, idx_write: 0, idx_cursor: Self::IDX_NONE, buf_full: false, n_items: 0 }
     }
 
     pub fn capacity(&self) -> usize { self.buf.len() }
 
-    pub fn is_empty(&self) -> bool { self.nitems == 0 }
+    pub fn is_empty(&self) -> bool { self.n_items == 0 }
 
     pub fn buf(&self) -> &[u8] { self.buf }
 
@@ -28,7 +28,7 @@ impl<'a> RoundBuffer<'a> {
 
     pub fn idx_write(&self) -> usize { self.idx_write }
 
-    pub fn count(&self) -> usize { self.nitems }
+    pub fn count(&self) -> usize { self.n_items }
 
     pub fn push(&mut self, src: &[u8]) -> Result<(), ()> {
         if src.len() + 1 > self.capacity() { return Err(()); }
@@ -36,7 +36,7 @@ impl<'a> RoundBuffer<'a> {
         let idx_write_end = self.idx_write + src.len() + 1;
         if idx_write_end <= self.buf.len() {
             if self.buf_full {
-                while self.idx_write <= self.idx_top && self.idx_top < idx_write_end && self.nitems > 0 {
+                while self.idx_write <= self.idx_top && self.idx_top < idx_write_end && self.n_items > 0 {
                     let mut idx = self.idx_top;
                     while self.buf[idx] != 0x00 {
                         idx += 1;
@@ -45,21 +45,21 @@ impl<'a> RoundBuffer<'a> {
                     idx += 1;
                     if idx >= self.buf.len() { idx = 0; }
                     self.idx_top = idx;
-                    self.nitems -= 1;
+                    self.n_items -= 1;
                 }
             }
             self.buf[self.idx_write..idx_write_end - 1].copy_from_slice(src);
             self.buf[idx_write_end - 1] = 0x00;
             self.idx_bottom = self.idx_write;
-            if self.nitems == 0 { self.idx_top = self.idx_write; }
+            if self.n_items == 0 { self.idx_top = self.idx_write; }
             self.idx_write = idx_write_end;
-            self.nitems += 1;
+            self.n_items += 1;
         } else {
             self.buf_full = true;
             let nbytes_copy = self.buf.len() - self.idx_write;
             let nbytes_rest = src.len() - nbytes_copy;
             let idx_write_end = nbytes_rest + 1;
-            while (self.idx_top < idx_write_end || self.idx_write <= self.idx_top) && self.nitems > 0 {
+            while (self.idx_top < idx_write_end || self.idx_write <= self.idx_top) && self.n_items > 0 {
                 let mut idx = self.idx_top;
                 while self.buf[idx] != 0x00 {
                     idx += 1;
@@ -68,15 +68,15 @@ impl<'a> RoundBuffer<'a> {
                 idx += 1;
                 if idx >= self.buf.len() { idx = 0; }
                 self.idx_top = idx;
-                self.nitems -= 1;
+                self.n_items -= 1;
             }
             self.buf[self.idx_write..self.idx_write + nbytes_copy].copy_from_slice(&src[..nbytes_copy]);
             self.buf[0..nbytes_rest].copy_from_slice(&src[nbytes_copy..]);
             self.buf[nbytes_rest] = 0x00;
             self.idx_bottom = self.idx_write;
-            if self.nitems == 0 { self.idx_top = self.idx_write; }
+            if self.n_items == 0 { self.idx_top = self.idx_write; }
             self.idx_write = idx_write_end;
-            self.nitems += 1;
+            self.n_items += 1;
         }
         if self.idx_write >= self.buf.len() { self.idx_write = 0; }
         Ok(())

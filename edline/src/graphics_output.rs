@@ -173,11 +173,14 @@ where
                 self.pt.x += self.x_advance;
             }
         }
-
         self.show_cursor();
     }
 
-    async fn new_line(&mut self) {
+    async fn print(&mut self, s: &str) {
+        self.write(s.as_bytes()).await;
+    }
+
+    async fn new_line(&mut self, _prompt: &str, _line_buf: &[u8]) {
         self.hide_cursor();
         self.pt.x = 0;
         self.pt.y += self.y_advance;

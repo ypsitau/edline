@@ -26,7 +26,8 @@ pub trait Output {
 
     fn init(&mut self) -> impl Future<Output = ()>;
     fn write(&mut self, data: &[u8]) -> impl Future<Output = ()>;
-    fn new_line(&mut self) -> impl Future<Output = ()>; 
+    fn print(&mut self, s: &str) -> impl Future<Output = ()>;
+    fn new_line(&mut self, prompt: &str, line_buf: &[u8]) -> impl Future<Output = ()>; 
     fn move_cursor_left_n(&mut self, n: usize) -> impl Future<Output = ()>;
     fn move_cursor_right_n(&mut self, n: usize) -> impl Future<Output = ()>;
     fn delete_to_line_end(&mut self) -> impl Future<Output = ()>;
@@ -42,7 +43,8 @@ impl Output for DummyOutput {
 
     async fn init(&mut self) {}
     async fn write(&mut self, _data: &[u8]) {}
-    async fn new_line(&mut self) {}
+    async fn print(&mut self, _s: &str) {}
+    async fn new_line(&mut self, _prompt: &str, _line_buf: &[u8]) {}
     async fn move_cursor_left_n(&mut self, _n: usize) {}
     async fn move_cursor_right_n(&mut self, _n: usize) {}
     async fn delete_to_line_end(&mut self) {}
@@ -56,6 +58,8 @@ pub struct Editor<'a, Output> {
     idx_end: usize,
     idx_completion: usize,
     range_result: (usize, usize),
+    first_of_line: bool,
+    prompt: &'a str,
 }
 
 impl<'a, OutputT: Output> Editor<'a, OutputT> {
@@ -71,6 +75,8 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             idx_end: 0,
             idx_completion: Self::IDX_NONE,
             range_result: (0, 0),
+            first_of_line: true,
+            prompt: "> ",
         }
     }
 
@@ -79,6 +85,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         self.idx_end = 0;
         self.idx_completion = Self::IDX_NONE;
         self.range_result = (0, 0);
+        self.first_of_line = true;
         self.output.init().await;
     }
 
@@ -141,6 +148,10 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     pub async fn read_key<ReadKey>(&mut self, reader: &mut ReadKey) -> Result<serkey::Key, ReadKey::Error>
     where ReadKey: keycode::ReadKey
     {
+        if self.first_of_line {
+            self.first_of_line = false;
+            self.output.write(self.prompt.as_bytes()).await;
+        }
         let mut read = core::pin::pin!(reader.read_key());
         loop {
             let mut blink = core::pin::pin!(self.output.blink_cursor());
@@ -186,14 +197,8 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     }
 
     pub async fn print(&mut self, s: &str) {
-        self.output.write(s.as_bytes()).await;
+        self.output.print(s).await;
     }
-
-    /// Waits for and performs the next cursor blink while the editor is idle.
-    /// Custom input loops should poll this concurrently with their input future.
-    //pub async fn wait_cursor_blink(&mut self) {
-    //    self.output.wait_cursor_blink().await;
-    //}
 
     pub async fn enter(&mut self) {
         let (idx_start, idx_end) = Self::strip(&self.line_buf[..self.idx_end]);
@@ -212,9 +217,10 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             }
         }
         self.range_result = (idx_start, idx_end);
-        self.output.new_line().await;
+        self.output.new_line(&self.prompt, &self.line_buf[..self.idx_end]).await;
         self.idx_cur = 0;
         self.idx_end = 0;
+        self.first_of_line = true;
     }
 
     pub async fn recall_history_prev(&mut self) {
@@ -450,9 +456,7 @@ where
 
 pub async fn simple_task_common(mut editor: Editor<'_, impl Output>, mut reader: impl keycode::ReadKey, enable_break: bool) {
     let mut sbuf_result: heapless::String<128> = heapless::String::new();
-    let prompt = "> ";
     editor.init().await;
-    editor.print(prompt).await;
     let mut cnt_completition = 0;
     let mut sbuf_completion: heapless::String<128> = heapless::String::new();
     loop {
@@ -467,7 +471,6 @@ pub async fn simple_task_common(mut editor: Editor<'_, impl Output>, mut reader:
                     editor.print("Result: ").await;
                     editor.print(&sbuf_result).await;
                     editor.print("\r\n").await;
-                    editor.print(prompt).await;
                 }
                 Event::ReqCompletionFirst => {
                     cnt_completition = 0;
