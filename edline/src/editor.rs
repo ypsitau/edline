@@ -393,7 +393,7 @@ where
     ColorType: eg::pixelcolor::RgbColor,
 {
     pub fn with_graphics_output(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
-        target: DrawTarget, config: GraphicsConfig, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
+        target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
         Self::new(line_buf, history_buf, GraphicsOutput::new(target, config, delay, fn_refresh))
     }
 }
@@ -436,7 +436,7 @@ where
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
-    let config = GraphicsConfig::default();
+    let config = GraphicsConfig::<ColorType>::default();
     let editor = Editor::with_graphics_output(line_buf, history_buf, target, config, delay, fn_refresh);
     simple_task_common(editor, key_reader, enable_break).await;
 }
@@ -449,22 +449,6 @@ pub async fn simple_task_common(mut editor: Editor<'_, impl Output>, mut reader:
     let mut cnt_completition = 0;
     let mut sbuf_completion: heapless::String<128> = heapless::String::new();
     loop {
-        //let key = {
-        //    let mut read = core::pin::pin!(reader.read_key());
-        //    loop {
-        //        let mut blink = core::pin::pin!(editor.wait_cursor_blink());
-        //        let result = core::future::poll_fn(|cx| {
-        //            if let core::task::Poll::Ready(result) = read.as_mut().poll(cx) {
-        //                return core::task::Poll::Ready(Some(result));
-        //            }
-        //            if blink.as_mut().poll(cx).is_ready() {
-        //                return core::task::Poll::Ready(None);
-        //            }
-        //            core::task::Poll::Pending
-        //        }).await;
-        //        if let Some(result) = result { break result; }
-        //    }
-        //};
         let key = editor.read_key(&mut reader).await;
         if let Ok(key) = key {
             if enable_break {

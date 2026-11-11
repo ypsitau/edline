@@ -3,23 +3,29 @@ use embedded_graphics as eg;
 use embedded_graphics::mono_font::ascii as eg_fonts;
 use embedded_graphics::prelude::*;
 
-pub struct Config {
+pub struct Config<ColorType = eg::pixelcolor::Rgb565> {
     pub cursor_blinking_interval: u32,
+    pub font: &'static eg::mono_font::MonoFont<'static>,
+    pub text_color: ColorType,
+    pub background_color: ColorType,
 }
 
-impl Config {
+impl<ColorType: eg::pixelcolor::RgbColor> Config<ColorType> {
     pub fn default() -> Self {
         Self {
             cursor_blinking_interval: 500,
+            font: &eg_fonts::FONT_10X20,
+            text_color: ColorType::GREEN,
+            background_color: ColorType::BLACK,
         }
     }
 }
-pub struct GraphicsOutput<DrawTarget, DelayNs, FnRefresh> {
+
+pub struct GraphicsOutput<DrawTarget: eg::draw_target::DrawTarget, DelayNs, FnRefresh> {
     target: DrawTarget,
     delay: DelayNs,
-    config: Config,
+    config: Config<<DrawTarget as eg::draw_target::DrawTarget>::Color>,
     fn_refresh: FnRefresh,
-    font: &'static eg::mono_font::MonoFont<'static>,
     char_buf: heapless::Vec<u8, 8>,
     pt: Point,
     x_advance: i32,
@@ -34,14 +40,18 @@ where
     DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
 {
-    pub fn new(target: DrawTarget, config: Config, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
-        let font = &eg_fonts::FONT_10X20;
+    pub fn new(
+        target: DrawTarget,
+        config: Config<<DrawTarget as eg::draw_target::DrawTarget>::Color>,
+        delay: DelayNs,
+        fn_refresh: FnRefresh,
+    ) -> Self {
+        let font = config.font;
         Self {
             target,
             delay,
             config,
             fn_refresh,
-            font,
             char_buf: heapless::Vec::new(),
             pt: Point::new(0, 0),
             x_advance: font.character_size.width as i32,
@@ -66,9 +76,9 @@ where
     ColorType: eg::pixelcolor::RgbColor,
 {
     fn draw_cursor(&mut self, visible: bool) {
-        let color = if visible { ColorType::GREEN } else { ColorType::BLACK };
-        let position = self.pt + Point::new(0, self.font.character_size.height as i32);
-        eg::primitives::Rectangle::new(position, Size::new(self.font.character_size.width, 2))
+        let color = if visible { self.config.text_color } else { self.config.background_color };
+        let position = self.pt + Point::new(0, self.config.font.character_size.height as i32);
+        eg::primitives::Rectangle::new(position, Size::new(self.config.font.character_size.width, 2))
             .into_styled(eg::primitives::PrimitiveStyle::with_fill(color))
             .draw(&mut self.target).unwrap_or_else(|_| panic!("failed to draw cursor"));
     }
@@ -100,7 +110,7 @@ where
         self.clear_char_buf();
         self.pt = Point::zero();
         self.cursor_visible = false;
-        self.target.clear(ColorType::BLACK).ok();
+        self.target.clear(self.config.background_color).ok();
         self.refresh();
     }
 
@@ -109,7 +119,8 @@ where
         let text_style = eg::text::TextStyleBuilder::new()
             .alignment(eg::text::Alignment::Left).baseline(eg::text::Baseline::Top).build();
         let character_style = eg::mono_font::MonoTextStyleBuilder::new()
-            .font(self.font).text_color(ColorType::GREEN).background_color(ColorType::BLACK).build();
+            .font(self.config.font).text_color(self.config.text_color)
+            .background_color(self.config.background_color).build();
         for x in data {
             let x = *x;
             if x & 0xC0 == 0x80 {
@@ -161,7 +172,7 @@ where
             self.y_advance as u32);
 
         eg::primitives::Rectangle::new(self.pt, size)
-            .into_styled(eg::primitives::PrimitiveStyle::with_fill(ColorType::BLACK))
+            .into_styled(eg::primitives::PrimitiveStyle::with_fill(self.config.background_color))
             .draw(&mut self.target).ok();
         self.show_cursor();
     }
