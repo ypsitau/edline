@@ -104,6 +104,17 @@ where
     fn calc_point(&self, i_col: i32, i_row: i32) -> Point {
         Point::new(self.calc_x(i_col), self.calc_y(i_row))
     }
+
+    fn advance_row(&mut self) {
+        if self.i_row + 1 < self.n_rows {
+            self.i_row += 1;
+        } else {
+            self.rollback_buf.reset_cursor();
+            for _ in 0..self.n_cols {
+                self.rollback_buf.move_cursor_backward();
+            }
+        }
+    }
 }
 
 impl<DrawTarget, DelayNs, FnRefresh, ColorType> GraphicsOutput<'_, DrawTarget, DelayNs, FnRefresh>
@@ -162,7 +173,7 @@ where
             .background_color(self.config.background_color).build();
         for x in data {
             let x = *x;
-            if x & 0xC0 == 0x80 {
+            if x & 0xc0 == 0x80 {
                 self.char_buf.push(x).ok();
                 continue;
             }
@@ -177,8 +188,8 @@ where
             }
             if x == b'\n' {
                 self.i_col = 0;
-                self.i_row += 1;
-            } else if x & 0xC0 == 0xC0 {
+                self.advance_row();
+            } else if x & 0xc0 == 0xc0 {
                 self.char_buf.push(x).ok();
             } else if let Ok(s) = str::from_utf8(&[x]) {
                 let pt = self.calc_point(self.i_col, self.i_row);
@@ -198,7 +209,7 @@ where
         self.rollback_buf.push(line_buf).unwrap();
         self.hide_cursor();
         self.i_col = 0;
-        self.i_row += 1;
+        self.advance_row();
         self.show_cursor();
     }
 

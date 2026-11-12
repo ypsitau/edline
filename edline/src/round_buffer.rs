@@ -104,23 +104,49 @@ impl<'a> RoundBuffer<'a> {
     }
 
     pub fn move_cursor_backward(&mut self) -> Option<(&[u8], &[u8], bool)> {
+        //if self.idx_cursor == Self::IDX_NONE {
+        //    if self.is_empty() { return None; }
+        //    self.idx_cursor = self.idx_bottom;
+        //} else if self.idx_cursor != self.idx_top {
+        //    self.idx_cursor = {
+        //        let mut idx = self.idx_cursor;
+        //        idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
+        //        let mut idx_start;
+        //        loop {
+        //            idx_start = idx;
+        //            if idx_start == self.idx_top { break; }
+        //            idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
+        //            if self.buf[idx] == 0x00 { break; }
+        //            assert!(idx != self.idx_cursor, "Failed to find null terminator in buffer");
+        //        }
+        //        idx_start
+        //    };
+        //}
+        //self.get_item(self.idx_cursor, self.idx_cursor == self.idx_top)
+        self.move_cursor_backward_n(1)
+    }
+
+    pub fn move_cursor_backward_n(&mut self, n: usize) -> Option<(&[u8], &[u8], bool)> {
         if self.idx_cursor == Self::IDX_NONE {
             if self.is_empty() { return None; }
             self.idx_cursor = self.idx_bottom;
-        } else if self.idx_cursor != self.idx_top {
-            self.idx_cursor = {
-                let mut idx = self.idx_cursor;
-                idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
-                let mut idx_start;
-                loop {
-                    idx_start = idx;
-                    if idx_start == self.idx_top { break; }
+        } else {
+            for _ in 0..n {
+                if self.idx_cursor == self.idx_top { break; }
+                self.idx_cursor = {
+                    let mut idx = self.idx_cursor;
                     idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
-                    if self.buf[idx] == 0x00 { break; }
-                    assert!(idx != self.idx_cursor, "Failed to find null terminator in buffer");
-                }
-                idx_start
-            };
+                    let mut idx_start;
+                    loop {
+                        idx_start = idx;
+                        if idx_start == self.idx_top { break; }
+                        idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
+                        if self.buf[idx] == 0x00 { break; }
+                        assert!(idx != self.idx_cursor, "Failed to find null terminator in buffer");
+                    }
+                    idx_start
+                };
+            }
         }
         self.get_item(self.idx_cursor, self.idx_cursor == self.idx_top)
     }
