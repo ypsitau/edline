@@ -3,6 +3,8 @@ use embedded_graphics as eg;
 use embedded_graphics::prelude::*;
 use crate::round_buffer::RoundBuffer;
 
+type CharBuf = heapless::Vec<u8, 8>;
+
 pub struct Config<ColorType = eg::pixelcolor::Rgb565> {
     pub cursor_blinking_interval: u32,
     pub font: &'static eg::mono_font::MonoFont<'static>,
@@ -39,11 +41,13 @@ impl<ColorType: eg::pixelcolor::RgbColor> Config<ColorType> {
 
 pub struct GraphicsOutput<'a, DrawTarget: eg::draw_target::DrawTarget, DelayNs, FnRefresh> {
     target: DrawTarget,
+    character_style: eg::mono_font::MonoTextStyle<'static, DrawTarget::Color>,
+    text_style: eg::text::TextStyle,
     rollback_buf: RoundBuffer<'a>,
     config: Config<DrawTarget::Color>,
     delay: DelayNs,
     fn_refresh: FnRefresh,
-    char_buf: heapless::Vec<u8, 8>,
+    char_buf: CharBuf,
     x_advance: i32,
     y_advance: i32,
     i_col: i32,
@@ -75,6 +79,11 @@ where
         let n_rows = size.height as i32 / y_advance;
         Self {
             target,
+            character_style: eg::mono_font::MonoTextStyleBuilder::new()
+                .font(config.font).text_color(config.text_color)
+                .background_color(config.background_color).build(),
+            text_style: eg::text::TextStyleBuilder::new()
+                .alignment(eg::text::Alignment::Left).baseline(eg::text::Baseline::Top).build(),
             rollback_buf: RoundBuffer::new(rollback_buf),
             config,
             delay,
@@ -110,8 +119,34 @@ where
             self.i_row += 1;
         } else {
             self.rollback_buf.reset_cursor();
-            for _ in 0..self.n_cols {
-                self.rollback_buf.move_cursor_backward();
+            self.rollback_buf.move_cursor_backward_n(self.n_cols as usize);
+
+        }
+    }
+
+    fn write_prim(&self, target: &mut DrawTarget, data: &[u8], i_col: &mut i32, i_row: &mut i32, char_buf: &mut CharBuf) {
+        for byte in data {
+            let byte = *byte;
+            if byte & 0xc0 == 0x80 {
+                char_buf.push(byte).ok();
+                continue;
+            }
+            if !char_buf.is_empty() {
+                if let Ok(s) = str::from_utf8(&char_buf) {
+                    let pt = self.calc_point(*i_col, *i_row);
+                    eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
+                        .draw(target).ok();
+                    *i_col += 1;
+                }
+                char_buf.clear();
+            }
+            if byte & 0xc0 == 0xc0 {
+                char_buf.push(byte).ok();
+            } else if let Ok(s) = str::from_utf8(&[byte]) {
+                let pt = self.calc_point(*i_col, *i_row);
+                eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
+                    .draw(target).ok();
+                *i_col += 1;
             }
         }
     }
@@ -166,34 +201,29 @@ where
 
     async fn write(&mut self, data: &[u8]) {
         self.hide_cursor();
-        let text_style = eg::text::TextStyleBuilder::new()
-            .alignment(eg::text::Alignment::Left).baseline(eg::text::Baseline::Top).build();
-        let character_style = eg::mono_font::MonoTextStyleBuilder::new()
-            .font(self.config.font).text_color(self.config.text_color)
-            .background_color(self.config.background_color).build();
-        for x in data {
-            let x = *x;
-            if x & 0xc0 == 0x80 {
-                self.char_buf.push(x).ok();
+        for byte in data {
+            let byte = *byte;
+            if byte & 0xc0 == 0x80 {
+                self.char_buf.push(byte).ok();
                 continue;
             }
             if !self.char_buf.is_empty() {
                 if let Ok(s) = str::from_utf8(&self.char_buf) {
                     let pt = self.calc_point(self.i_col, self.i_row);
-                    eg::text::Text::with_text_style(s, pt, character_style, text_style)
+                    eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
                         .draw(&mut self.target).ok();
                     self.i_col += 1;
                 }
                 self.clear_char_buf();
             }
-            if x == b'\n' {
+            if byte == b'\n' {
                 self.i_col = 0;
                 self.advance_row();
-            } else if x & 0xc0 == 0xc0 {
-                self.char_buf.push(x).ok();
-            } else if let Ok(s) = str::from_utf8(&[x]) {
+            } else if byte & 0xc0 == 0xc0 {
+                self.char_buf.push(byte).ok();
+            } else if let Ok(s) = str::from_utf8(&[byte]) {
                 let pt = self.calc_point(self.i_col, self.i_row);
-                eg::text::Text::with_text_style(s, pt, character_style, text_style)
+                eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
                     .draw(&mut self.target).ok();
                 self.i_col += 1;
             }
