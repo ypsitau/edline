@@ -1,7 +1,6 @@
 use embedded_hal_async as hal_async;
 use embedded_graphics as eg;
 use embedded_graphics::prelude::*;
-use static_cell::StaticCell;
 use crate::round_buffer::RoundBuffer;
 
 pub struct Config<ColorType = eg::pixelcolor::Rgb565> {
@@ -45,9 +44,10 @@ pub struct GraphicsOutput<'a, DrawTarget: eg::draw_target::DrawTarget, DelayNs, 
     delay: DelayNs,
     fn_refresh: FnRefresh,
     char_buf: heapless::Vec<u8, 8>,
-    pt: Point,
     x_advance: i32,
     y_advance: i32,
+    i_col: i32,
+    i_row: i32,
     n_cols: i32,
     n_rows: i32,
     cursor_visible: bool,
@@ -80,18 +80,29 @@ where
             delay,
             fn_refresh,
             char_buf: heapless::Vec::new(),
-            pt: Point::new(0, 0),
+            i_col: 0,
+            i_row: 0,
             x_advance, y_advance,
             n_cols, n_rows,
             cursor_visible: false,
             cursor_blinking_toggle: false,
         }
     }
+
     fn clear_char_buf(&mut self) {
         self.char_buf.clear();
     }
+
     fn refresh(&mut self) {
         (self.fn_refresh)(&mut self.target);
+    }
+
+    fn calc_x(&self, i_col: i32) -> i32 { i_col * self.x_advance }
+
+    fn calc_y(&self, i_row: i32) -> i32 { i_row * self.y_advance }
+
+    fn calc_point(&self, i_col: i32, i_row: i32) -> Point {
+        Point::new(self.calc_x(i_col), self.calc_y(i_row))
     }
 }
 
@@ -104,7 +115,7 @@ where
 {
     fn draw_cursor(&mut self, visible: bool) {
         let color = if visible { self.config.text_color } else { self.config.background_color };
-        let position = self.pt + Point::new(0, self.config.font.character_size.height as i32);
+        let position = self.calc_point(self.i_col, self.i_row) + Point::new(0, self.config.font.character_size.height as i32);
         eg::primitives::Rectangle::new(position, Size::new(self.config.font.character_size.width, 2))
             .into_styled(eg::primitives::PrimitiveStyle::with_fill(color))
             .draw(&mut self.target).unwrap_or_else(|_| panic!("failed to draw cursor"));
@@ -135,7 +146,8 @@ where
 
     async fn init(&mut self) {
         self.clear_char_buf();
-        self.pt = Point::zero();
+        self.i_col = 0;
+        self.i_row = 0;
         self.cursor_visible = false;
         self.target.clear(self.config.background_color).ok();
         self.refresh();
@@ -156,21 +168,23 @@ where
             }
             if !self.char_buf.is_empty() {
                 if let Ok(s) = str::from_utf8(&self.char_buf) {
-                    eg::text::Text::with_text_style(s, self.pt, character_style, text_style)
+                    let pt = self.calc_point(self.i_col, self.i_row);
+                    eg::text::Text::with_text_style(s, pt, character_style, text_style)
                         .draw(&mut self.target).ok();
-                    self.pt.x += self.x_advance;
+                    self.i_col += 1;
                 }
                 self.clear_char_buf();
             }
             if x == b'\n' {
-                self.pt.x = 0;
-                self.pt.y += self.y_advance;
+                self.i_col = 0;
+                self.i_row += 1;
             } else if x & 0xC0 == 0xC0 {
                 self.char_buf.push(x).ok();
             } else if let Ok(s) = str::from_utf8(&[x]) {
-                eg::text::Text::with_text_style(s, self.pt, character_style, text_style)
+                let pt = self.calc_point(self.i_col, self.i_row);
+                eg::text::Text::with_text_style(s, pt, character_style, text_style)
                     .draw(&mut self.target).ok();
-                self.pt.x += self.x_advance;
+                self.i_col += 1;
             }
         }
         self.show_cursor();
@@ -180,31 +194,32 @@ where
         self.write(s.as_bytes()).await;
     }
 
-    async fn new_line(&mut self, _prompt: &str, _line_buf: &[u8]) {
+    async fn new_line(&mut self, _prompt: &str, line_buf: &[u8]) {
+        self.rollback_buf.push(line_buf).unwrap();
         self.hide_cursor();
-        self.pt.x = 0;
-        self.pt.y += self.y_advance;
+        self.i_col = 0;
+        self.i_row += 1;
         self.show_cursor();
     }
 
     async fn move_cursor_left_n(&mut self, n: usize) {
         self.hide_cursor();
-        self.pt.x -= self.x_advance * n as i32;
+        self.i_col -= n as i32;
         self.show_cursor();
     }
 
     async fn move_cursor_right_n(&mut self, n: usize) {
         self.hide_cursor();
-        self.pt.x += self.x_advance * n as i32;
+        self.i_col += n as i32;
         self.show_cursor();
     }
 
     async fn delete_to_line_end(&mut self) {
         self.hide_cursor();
         let size = Size::new(
-            self.target.bounding_box().size.width.saturating_sub(self.pt.x.max(0) as u32),
+            self.target.bounding_box().size.width.saturating_sub(self.calc_x(self.i_col).max(0) as u32),
             self.y_advance as u32);
-        eg::primitives::Rectangle::new(self.pt, size)
+        eg::primitives::Rectangle::new(self.calc_point(self.i_col, self.i_row), size)
             .into_styled(eg::primitives::PrimitiveStyle::with_fill(self.config.background_color))
             .draw(&mut self.target).ok();
         self.show_cursor();
