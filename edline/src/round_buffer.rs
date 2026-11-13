@@ -82,16 +82,13 @@ impl<'a> RoundBuffer<'a> {
         Ok(())
     }
 
-    pub fn get_item_at(&self, index: usize) -> Option<(&[u8], &[u8], bool)> {
-        if index == Self::IDX_NONE || self.is_empty() { return None; }
-        self.get_item(index, index == self.idx_bottom)
-    }
-
     pub fn move_index_forward(&self, index: &mut usize) -> bool {
         if *index == Self::IDX_NONE {
             if self.is_empty() { return false; }
             *index = self.idx_top;
-        } else if *index != self.idx_bottom {
+        } else if *index == self.idx_bottom {
+            return false;
+        } else {
             *index = {
                 let mut idx = *index;
                 while self.buf[idx] != 0x00 {
@@ -114,7 +111,7 @@ impl<'a> RoundBuffer<'a> {
             *index = self.idx_bottom;
         } else {
             for _ in 0..n {
-                if *index == self.idx_top { break; }
+                if *index == self.idx_top { return false; }
                 *index = {
                     let mut idx = *index;
                     idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
@@ -133,7 +130,8 @@ impl<'a> RoundBuffer<'a> {
         true
     }
 
-    fn get_item(&self, idx_item: usize, last_item: bool) -> Option<(&[u8], &[u8], bool)> {
+    pub fn get_item(&self, idx_item: usize) -> Option<(&[u8], &[u8])> {
+        if idx_item == Self::IDX_NONE || self.is_empty() { return None; }
         let idx_end = {
             let mut idx = idx_item;
             while self.buf[idx] != 0x00 {
@@ -143,11 +141,11 @@ impl<'a> RoundBuffer<'a> {
             idx
         };
         if idx_end == 0 {
-            Some((&self.buf[idx_item..], &self.buf[0..0], last_item))
+            Some((&self.buf[idx_item..], &self.buf[0..0]))
         } else if idx_end < idx_item {
-            Some((&self.buf[idx_item..], &self.buf[..idx_end], last_item))
+            Some((&self.buf[idx_item..], &self.buf[..idx_end]))
         } else {
-            Some((&self.buf[idx_item..idx_end], &self.buf[0..0], last_item))
+            Some((&self.buf[idx_item..idx_end], &self.buf[0..0]))
         }
     }
 }

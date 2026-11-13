@@ -100,13 +100,12 @@ pub fn print_items(round_buf: &edline::RoundBuffer) {
     let mut nitems = 0;
     let mut index = edline::RoundBuffer::IDX_NONE;
     while round_buf.move_index_forward(&mut index) {
-        let (first, second, last_item) = round_buf.get_item_at(index).unwrap();
+        let (first, second) = round_buf.get_item(index).unwrap();
         let (first, second) = (str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
         let item = first.to_string() + second;
         println!("\"{}\" (\"{}\" + \"{}\")", item, first, second);
         items_fwd.push(item);
         nitems += 1;
-        if last_item { break; }
     }
     assert_eq!(nitems, round_buf.count(), "item count mismatch");
     let mut items_bwd: Vec<String> = Vec::new();
@@ -114,12 +113,11 @@ pub fn print_items(round_buf: &edline::RoundBuffer) {
     println!("Items (backward):");
     let mut index = edline::RoundBuffer::IDX_NONE;
     while round_buf.move_index_backward(&mut index) {
-        let (first, second, last_item) = round_buf.get_item_at(index).unwrap();
+        let (first, second) = round_buf.get_item(index).unwrap();
         let (first, second) = (str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
         let item = first.to_string() + second;
         println!("\"{}\" (\"{}\" + \"{}\")", item, first, second);
         items_bwd.push(item);
-        if last_item { break; }
     }
     // items_fwd is compared from the start, items_bwd from the end
     assert_eq!(items_fwd.len(), items_bwd.len(), "item count mismatch");
