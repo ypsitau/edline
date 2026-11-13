@@ -102,10 +102,6 @@ where
         }
     }
 
-    fn clear_utf8_acc(&mut self) {
-        self.utf8_acc.reset();
-    }
-
     fn refresh(&mut self) {
         (self.fn_refresh)(&mut self.target);
     }
@@ -124,7 +120,7 @@ where
         } else {
             self.rollback_buf.reset_cursor();
             self.rollback_buf.move_cursor_backward_n(self.n_cols as usize);
-            self.clear_utf8_acc();
+            self.utf8_acc.reset();
         }
     }
 }
@@ -148,7 +144,7 @@ where
         if self.cursor_visible && self.cursor_blinking_toggle { self.draw_cursor(false); }
         self.cursor_visible = false;
     }
-    
+
     fn show_cursor(&mut self) {
         self.cursor_visible = true;
         self.cursor_blinking_toggle = true;
@@ -168,7 +164,7 @@ where
     type Error = ();
 
     async fn init(&mut self) {
-        self.clear_utf8_acc();
+        self.utf8_acc.reset();
         self.i_col = 0;
         self.i_row = 0;
         self.cursor_visible = false;
