@@ -48,6 +48,7 @@ pub struct GraphicsOutput<'a, DrawTarget: eg::draw_target::DrawTarget, DelayNs, 
     character_style: eg::mono_font::MonoTextStyle<'static, DrawTarget::Color>,
     text_style: eg::text::TextStyle,
     rollback_buf: RoundBuffer<'a>,
+    work_buf: &'a mut [u8],
     config: Config<DrawTarget::Color>,
     delay: DelayNs,
     fn_refresh: FnRefresh,
@@ -71,6 +72,7 @@ where
     pub fn new(
         target: DrawTarget,
         rollback_buf: &'a mut [u8],
+        work_buf: &'a mut [u8],
         config: Config<<DrawTarget as eg::draw_target::DrawTarget>::Color>,
         delay: DelayNs,
         fn_refresh: FnRefresh,
@@ -89,6 +91,7 @@ where
             text_style: eg::text::TextStyleBuilder::new()
                 .alignment(eg::text::Alignment::Left).baseline(eg::text::Baseline::Top).build(),
             rollback_buf: RoundBuffer::new(rollback_buf),
+            work_buf,
             config,
             delay,
             fn_refresh,
@@ -219,8 +222,12 @@ where
         self.rollback_buf.push(s.as_bytes()).unwrap();
     }
 
-    async fn new_line(&mut self, _prompt: &str, line_buf: &[u8]) {
-        self.rollback_buf.push(line_buf).unwrap();
+    async fn new_line(&mut self, prompt: &str, line_buf: &[u8]) {
+        let nbytes_combined = prompt.as_bytes().len() + line_buf.len();
+        let idx_next = prompt.as_bytes().len();
+        self.work_buf[..idx_next].copy_from_slice(prompt.as_bytes());
+        self.work_buf[idx_next..idx_next + line_buf.len()].copy_from_slice(line_buf);
+        self.rollback_buf.push(&self.work_buf[..nbytes_combined]).unwrap();
         self.hide_cursor();
         self.i_col = 0;
         self.advance_row();
