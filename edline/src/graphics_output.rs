@@ -115,28 +115,28 @@ where
     }
 
     fn advance_row(&mut self) {
-        if self.i_row + 1 < self.n_rows {
-            self.i_row += 1;
-        } else {
-            let mut i_row = 0;
-            if let Some((first, second, _)) = self.rollback_buf.move_index_backward_n(self.n_rows as usize) {
-                loop {
-                    let mut utf8_acc = Utf8Accumulator::new();
-                    let mut i_col = 0;
-                    for byte in first.iter().chain(second.iter()) {
-                        if utf8_acc.push(*byte) {
-                            let s = utf8_acc.get_result();
-                            //let pt = self.calc_point(i_col, i_row);
-                            let pt = Point::new(0, 0);
-                            eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
-                                .draw(&mut self.target).ok();
-                            i_col += 1;
-                            utf8_acc.reset();
-                        }
-                    }
-                }
-            }
-        }
+        //if self.i_row + 1 < self.n_rows {
+        //    self.i_row += 1;
+        //} else {
+        //    let mut i_row = 0;
+        //    if self.rollback_buf.move_index_backward_n(self.n_rows as usize) {
+        //        loop {
+        //            let mut utf8_acc = Utf8Accumulator::new();
+        //            let mut i_col = 0;
+        //            for byte in first.iter().chain(second.iter()) {
+        //                if utf8_acc.push(*byte) {
+        //                    let s = utf8_acc.get_result();
+        //                    //let pt = self.calc_point(i_col, i_row);
+        //                    let pt = Point::new(0, 0);
+        //                    eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
+        //                        .draw(&mut self.target).ok();
+        //                    i_col += 1;
+        //                    utf8_acc.reset();
+        //                }
+        //            }
+        //        }
+        //    }
+        //}
     }
 }
 

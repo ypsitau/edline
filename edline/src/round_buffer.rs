@@ -82,13 +82,14 @@ impl<'a> RoundBuffer<'a> {
         Ok(())
     }
 
-    //pub fn reset_cursor(&mut self) {
-    //    self.idx_cursor = Self::IDX_NONE;
-    //}
+    pub fn get_item_at(&self, index: usize) -> Option<(&[u8], &[u8], bool)> {
+        if index == Self::IDX_NONE || self.is_empty() { return None; }
+        self.get_item(index, index == self.idx_bottom)
+    }
 
-    pub fn move_index_forward(&self, index: &mut usize) -> Option<(&[u8], &[u8], bool)> {
+    pub fn move_index_forward(&self, index: &mut usize) -> bool {
         if *index == Self::IDX_NONE {
-            if self.is_empty() { return None; }
+            if self.is_empty() { return false; }
             *index = self.idx_top;
         } else if *index != self.idx_bottom {
             *index = {
@@ -100,16 +101,16 @@ impl<'a> RoundBuffer<'a> {
                 if idx + 1 < self.buf.len() { idx + 1 } else { 0 }
             };
         }
-        self.get_item(*index, *index == self.idx_bottom)
+        true
     }
 
-    pub fn move_index_backward(&self, index: &mut usize) -> Option<(&[u8], &[u8], bool)> {
+    pub fn move_index_backward(&self, index: &mut usize) -> bool {
         self.move_index_backward_n(index, 1)
     }
 
-    pub fn move_index_backward_n(&self, index: &mut usize, n: usize) -> Option<(&[u8], &[u8], bool)> {
+    pub fn move_index_backward_n(&self, index: &mut usize, n: usize) -> bool {
         if *index == Self::IDX_NONE {
-            if self.is_empty() { return None; }
+            if self.is_empty() { return false; }
             *index = self.idx_bottom;
         } else {
             for _ in 0..n {
@@ -129,7 +130,7 @@ impl<'a> RoundBuffer<'a> {
                 };
             }
         }
-        self.get_item(*index, *index == self.idx_top)
+        true
     }
 
     fn get_item(&self, idx_item: usize, last_item: bool) -> Option<(&[u8], &[u8], bool)> {
