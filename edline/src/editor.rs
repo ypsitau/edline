@@ -449,7 +449,7 @@ where
     };
     let rollback_buf = {
         static STATIC_CELL: StaticCell<[u8; 1024]> = StaticCell::new();
-        STATIC_CELL.init([0; 1024])
+        STATIC_CELL.init([0u8; 1024])
     };
     let config = GraphicsConfig::<ColorType>::default()
         .font(&eg::mono_font::ascii::FONT_7X13_BOLD)
