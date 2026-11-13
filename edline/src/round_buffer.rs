@@ -3,17 +3,17 @@ pub struct RoundBuffer<'a> {
     idx_top: usize,
     idx_bottom: usize,
     idx_write: usize,
-    idx_cursor: usize,
+    //idx_cursor: usize,
     buf_full: bool,
     n_items: usize,
 }
 
 impl<'a> RoundBuffer<'a> {
-    const IDX_NONE: usize = usize::MAX;
+    pub const IDX_NONE: usize = usize::MAX;
 
     pub fn new(buf: &'a mut [u8]) -> Self {
         buf.fill(0x00);
-        Self { buf, idx_top: 0, idx_bottom: 0, idx_write: 0, idx_cursor: Self::IDX_NONE, buf_full: false, n_items: 0 }
+        Self { buf, idx_top: 0, idx_bottom: 0, idx_write: 0, buf_full: false, n_items: 0 }
     }
 
     pub fn capacity(&self) -> usize { self.buf.len() }
@@ -32,7 +32,7 @@ impl<'a> RoundBuffer<'a> {
 
     pub fn push(&mut self, src: &[u8]) -> Result<(), ()> {
         if src.len() + 1 > self.capacity() { return Err(()); }
-        self.idx_cursor = Self::IDX_NONE;
+        //self.idx_cursor = Self::IDX_NONE;
         let idx_write_end = self.idx_write + src.len() + 1;
         if idx_write_end <= self.buf.len() {
             if self.buf_full {
@@ -82,59 +82,40 @@ impl<'a> RoundBuffer<'a> {
         Ok(())
     }
 
-    pub fn reset_cursor(&mut self) {
-        self.idx_cursor = Self::IDX_NONE;
-    }
+    //pub fn reset_cursor(&mut self) {
+    //    self.idx_cursor = Self::IDX_NONE;
+    //}
 
-    pub fn move_cursor_forward(&mut self) -> Option<(&[u8], &[u8], bool)> {
-        if self.idx_cursor == Self::IDX_NONE {
+    pub fn move_index_forward(&self, index: &mut usize) -> Option<(&[u8], &[u8], bool)> {
+        if *index == Self::IDX_NONE {
             if self.is_empty() { return None; }
-            self.idx_cursor = self.idx_top;
-        } else if self.idx_cursor != self.idx_bottom {
-            self.idx_cursor = {
-                let mut idx = self.idx_cursor;
+            *index = self.idx_top;
+        } else if *index != self.idx_bottom {
+            *index = {
+                let mut idx = *index;
                 while self.buf[idx] != 0x00 {
                     idx = if idx + 1 < self.buf.len() { idx + 1 } else { 0 };
-                    assert!(idx != self.idx_cursor, "Failed to find null terminator in buffer");
+                    assert!(idx != *index, "Failed to find null terminator in buffer");
                 }
                 if idx + 1 < self.buf.len() { idx + 1 } else { 0 }
             };
         }
-        self.get_item(self.idx_cursor, self.idx_cursor == self.idx_bottom)
+        self.get_item(*index, *index == self.idx_bottom)
     }
 
-    pub fn move_cursor_backward(&mut self) -> Option<(&[u8], &[u8], bool)> {
-        //if self.idx_cursor == Self::IDX_NONE {
-        //    if self.is_empty() { return None; }
-        //    self.idx_cursor = self.idx_bottom;
-        //} else if self.idx_cursor != self.idx_top {
-        //    self.idx_cursor = {
-        //        let mut idx = self.idx_cursor;
-        //        idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
-        //        let mut idx_start;
-        //        loop {
-        //            idx_start = idx;
-        //            if idx_start == self.idx_top { break; }
-        //            idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
-        //            if self.buf[idx] == 0x00 { break; }
-        //            assert!(idx != self.idx_cursor, "Failed to find null terminator in buffer");
-        //        }
-        //        idx_start
-        //    };
-        //}
-        //self.get_item(self.idx_cursor, self.idx_cursor == self.idx_top)
-        self.move_cursor_backward_n(1)
+    pub fn move_index_backward(&self, index: &mut usize) -> Option<(&[u8], &[u8], bool)> {
+        self.move_index_backward_n(index, 1)
     }
 
-    pub fn move_cursor_backward_n(&mut self, n: usize) -> Option<(&[u8], &[u8], bool)> {
-        if self.idx_cursor == Self::IDX_NONE {
+    pub fn move_index_backward_n(&self, index: &mut usize, n: usize) -> Option<(&[u8], &[u8], bool)> {
+        if *index == Self::IDX_NONE {
             if self.is_empty() { return None; }
-            self.idx_cursor = self.idx_bottom;
+            *index = self.idx_bottom;
         } else {
             for _ in 0..n {
-                if self.idx_cursor == self.idx_top { break; }
-                self.idx_cursor = {
-                    let mut idx = self.idx_cursor;
+                if *index == self.idx_top { break; }
+                *index = {
+                    let mut idx = *index;
                     idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
                     let mut idx_start;
                     loop {
@@ -142,13 +123,13 @@ impl<'a> RoundBuffer<'a> {
                         if idx_start == self.idx_top { break; }
                         idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
                         if self.buf[idx] == 0x00 { break; }
-                        assert!(idx != self.idx_cursor, "Failed to find null terminator in buffer");
+                        assert!(idx != *index, "Failed to find null terminator in buffer");
                     }
                     idx_start
                 };
             }
         }
-        self.get_item(self.idx_cursor, self.idx_cursor == self.idx_top)
+        self.get_item(*index, *index == self.idx_top)
     }
 
     fn get_item(&self, idx_item: usize, last_item: bool) -> Option<(&[u8], &[u8], bool)> {

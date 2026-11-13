@@ -53,6 +53,7 @@ impl Output for DummyOutput {
 pub struct Editor<'a, Output> {
     line_buf: &'a mut [u8],
     history_buf: RoundBuffer<'a>,
+    index_history: usize,
     output: Output,
     idx_cur: usize,
     idx_end: usize,
@@ -70,6 +71,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         Self {
             line_buf,
             history_buf: RoundBuffer::new(history_buf),
+            index_history: RoundBuffer::IDX_NONE,
             output,
             idx_cur: 0,
             idx_end: 0,
@@ -140,7 +142,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             serkey::Key::End(attr) if attr.is_none() => { self.move_cursor_to_line_end().await; }
             _ => {}
         }
-        if !history_operation { self.history_buf.reset_cursor(); }
+        if !history_operation { self.index_history = RoundBuffer::IDX_NONE; }
         if quit_completion { self.idx_completion = Self::IDX_NONE; }
         event
     }
@@ -205,8 +207,8 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         let line_buf_stripped = &self.line_buf[idx_start..idx_end];
         if idx_start != idx_end {
             let mut skip_push = false;
-            self.history_buf.reset_cursor();
-            if let Some((first, second, _)) = self.history_buf.move_cursor_backward() {
+            let mut index = RoundBuffer::IDX_NONE;
+            if let Some((first, second, _)) = self.history_buf.move_index_backward(&mut index) {
                 skip_push =
                     self.idx_end == first.len() + second.len() &&
                     line_buf_stripped[..first.len()].cmp(first) == core::cmp::Ordering::Equal &&
@@ -225,7 +227,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
 
     pub async fn recall_history_prev(&mut self) {
         let width = self.calc_width(0, self.idx_cur);
-        if let Some((first, second, _)) = self.history_buf.move_cursor_backward() {
+        if let Some((first, second, _)) = self.history_buf.move_index_backward(&mut self.index_history) {
             let idx_end = first.len() + second.len();
             assert!(idx_end <= self.line_buf.len());
             self.line_buf[..first.len()].copy_from_slice(first);
@@ -240,7 +242,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
 
     pub async fn recall_history_next(&mut self) {
         let width = self.calc_width(0, self.idx_cur);
-        if let Some((first, second, _)) = self.history_buf.move_cursor_forward() {
+        if let Some((first, second, _)) = self.history_buf.move_index_forward(&mut self.index_history) {
             let idx_end = first.len() + second.len();
             assert!(idx_end <= self.line_buf.len());
             self.line_buf[..first.len()].copy_from_slice(first);
