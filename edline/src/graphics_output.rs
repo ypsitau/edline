@@ -119,27 +119,25 @@ where
             self.i_row += 1;
         } else {
             let mut idx_item = RoundBuffer::IDX_NONE;
-            let n_rows = self.n_rows as usize - 1;
             let mut utf8_acc = Utf8Accumulator::new();
-            if self.rollback_buf.seek_item_backward_n(&mut idx_item, n_rows) {
-                let mut i_row = 0;
-                loop {
-                    let mut i_col = 0;
-                    utf8_acc.reset();
-                    let (first, second) = self.rollback_buf.get_item(idx_item).unwrap();
-                    for byte in first.iter().chain(second.iter()) {
-                        if utf8_acc.push(*byte) {
-                            let s = utf8_acc.get_result();
-                            let pt = self.calc_point(i_col, i_row);
-                            eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
-                                .draw(&mut self.target).ok();
-                            i_col += 1;
-                            utf8_acc.reset();
-                        }
+            let mut i_row = self.n_rows - 2;
+            while i_row >= 0 && self.rollback_buf.seek_item_backward(&mut idx_item) {
+                let mut i_col = 0;
+                utf8_acc.reset();
+                let (first, second) = self.rollback_buf.get_item(idx_item).unwrap();
+                let (first_s, second_s) = (str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
+                println!("i_row: {} {}{}", i_row, first_s, second_s);
+                for byte in first.iter().chain(second.iter()) {
+                    if utf8_acc.push(*byte) {
+                        let s = utf8_acc.get_result();
+                        let pt = self.calc_point(i_col, i_row);
+                        eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
+                            .draw(&mut self.target).ok();
+                        i_col += 1;
+                        utf8_acc.reset();
                     }
-                    if !self.rollback_buf.seek_item_forward(&mut idx_item) { break; }
-                    i_row += 1;
                 }
+                i_row -= 1;
             }
         }
     }

@@ -473,9 +473,9 @@ pub async fn simple_task_common(mut editor: Editor<'_, impl Output>, mut reader:
             match editor.process_key(key).await {
                 Event::Entered => {
                     editor.read_result_str(&mut sbuf_result).ok();
-                    editor.print("Result: ").await;
-                    editor.print(&sbuf_result).await;
-                    editor.print("\r\n").await;
+                    //editor.print("Result: ").await;
+                    //editor.print(&sbuf_result).await;
+                    //editor.print("\r\n").await;
                 }
                 Event::ReqCompletionFirst => {
                     cnt_completition = 0;
