@@ -115,14 +115,9 @@ where
     }
 
     fn advance_row(&mut self) {
-    }
-    
-    #[cfg(false)]
-    fn advance_row(&mut self) {
         if self.i_row + 1 < self.n_rows {
             self.i_row += 1;
         } else {
-            self.rollback_buf.reset_cursor();
             let mut i_row = 0;
             if let Some((first, second, _)) = self.rollback_buf.move_index_backward_n(self.n_rows as usize) {
                 loop {
