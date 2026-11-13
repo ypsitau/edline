@@ -3,8 +3,6 @@ use embedded_graphics as eg;
 use embedded_graphics::prelude::*;
 use crate::round_buffer::RoundBuffer;
 
-type CharBuf = heapless::Vec<u8, 8>;
-
 pub struct Config<ColorType = eg::pixelcolor::Rgb565> {
     pub cursor_blinking_interval: u32,
     pub font: &'static eg::mono_font::MonoFont<'static>,
@@ -47,7 +45,7 @@ pub struct GraphicsOutput<'a, DrawTarget: eg::draw_target::DrawTarget, DelayNs, 
     config: Config<DrawTarget::Color>,
     delay: DelayNs,
     fn_refresh: FnRefresh,
-    char_buf: CharBuf,
+    utf8_acc: Utf8Accumulator,
     x_advance: i32,
     y_advance: i32,
     i_col: i32,
@@ -88,7 +86,7 @@ where
             config,
             delay,
             fn_refresh,
-            char_buf: heapless::Vec::new(),
+            utf8_acc: Utf8Accumulator::new(),
             i_col: 0,
             i_row: 0,
             x_advance, y_advance,
@@ -98,8 +96,8 @@ where
         }
     }
 
-    fn clear_char_buf(&mut self) {
-        self.char_buf.clear();
+    fn clear_utf8_acc(&mut self) {
+        self.utf8_acc.reset();
     }
 
     fn refresh(&mut self) {
@@ -120,37 +118,58 @@ where
         } else {
             self.rollback_buf.reset_cursor();
             self.rollback_buf.move_cursor_backward_n(self.n_cols as usize);
-
-        }
-    }
-
-    fn write_prim(&self, target: &mut DrawTarget, data: &[u8], i_col: &mut i32, i_row: &mut i32, char_buf: &mut CharBuf) {
-        for byte in data {
-            let byte = *byte;
-            if byte & 0xc0 == 0x80 {
-                char_buf.push(byte).ok();
-                continue;
-            }
-            if !char_buf.is_empty() {
-                if let Ok(s) = str::from_utf8(&char_buf) {
-                    let pt = self.calc_point(*i_col, *i_row);
-                    eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
-                        .draw(target).ok();
-                    *i_col += 1;
-                }
-                char_buf.clear();
-            }
-            if byte & 0xc0 == 0xc0 {
-                char_buf.push(byte).ok();
-            } else if let Ok(s) = str::from_utf8(&[byte]) {
-                let pt = self.calc_point(*i_col, *i_row);
-                eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
-                    .draw(target).ok();
-                *i_col += 1;
-            }
+            self.clear_utf8_acc();
         }
     }
 }
+
+struct Utf8Accumulator {
+    buf: [u8; 8],
+    idx: u8,
+    idx_end: u8,
+}
+
+impl Utf8Accumulator {
+    fn new() -> Self {
+        Self { buf: [0; 8], idx: 0, idx_end: 0 }
+    }
+
+    fn reset(&mut self) {
+        self.idx = 0;
+        self.idx_end = 0;
+    }
+
+    fn push(&mut self, byte: u8) -> bool {
+        if self.idx == 0 {
+            self.buf[0] = byte;
+            self.idx = 1;
+            if byte & 0x80 == 0x00 {
+                self.idx_end = 1;
+                return true;
+            } else if byte & 0xe0 == 0xc0 {
+                self.idx_end = 2;
+            } else if byte & 0xf0 == 0xe0 {
+                self.idx_end = 3;
+            } else if byte & 0xf8 == 0xf0 {
+                self.idx_end = 4;
+            } else {
+                self.reset();
+            };
+        } else if byte & 0xc0 == 0x80 {
+            self.buf[self.idx as usize] = byte;
+            self.idx += 1;
+            return self.idx == self.idx_end;
+        } else {
+            self.reset();
+        }
+        false
+    }
+
+    fn get_result(&self) -> &str {
+        unsafe { core::str::from_utf8_unchecked(&self.buf[..self.idx_end as usize]) }
+    }
+}
+
 
 impl<DrawTarget, DelayNs, FnRefresh, ColorType> GraphicsOutput<'_, DrawTarget, DelayNs, FnRefresh>
 where
@@ -191,7 +210,7 @@ where
     type Error = ();
 
     async fn init(&mut self) {
-        self.clear_char_buf();
+        self.clear_utf8_acc();
         self.i_col = 0;
         self.i_row = 0;
         self.cursor_visible = false;
@@ -203,29 +222,18 @@ where
         self.hide_cursor();
         for byte in data {
             let byte = *byte;
-            if byte & 0xc0 == 0x80 {
-                self.char_buf.push(byte).ok();
-                continue;
-            }
-            if !self.char_buf.is_empty() {
-                if let Ok(s) = str::from_utf8(&self.char_buf) {
+            if self.utf8_acc.push(byte) {
+                let s = self.utf8_acc.get_result();
+                if s == "\n" {
+                    self.i_col = 0;
+                    self.advance_row();
+                } else {
                     let pt = self.calc_point(self.i_col, self.i_row);
                     eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
                         .draw(&mut self.target).ok();
                     self.i_col += 1;
                 }
-                self.clear_char_buf();
-            }
-            if byte == b'\n' {
-                self.i_col = 0;
-                self.advance_row();
-            } else if byte & 0xc0 == 0xc0 {
-                self.char_buf.push(byte).ok();
-            } else if let Ok(s) = str::from_utf8(&[byte]) {
-                let pt = self.calc_point(self.i_col, self.i_row);
-                eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
-                    .draw(&mut self.target).ok();
-                self.i_col += 1;
+                self.utf8_acc.reset();
             }
         }
         self.show_cursor();
