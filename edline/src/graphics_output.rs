@@ -3,6 +3,9 @@ use embedded_graphics as eg;
 use embedded_graphics::prelude::*;
 use crate::round_buffer::RoundBuffer;
 
+//-----------------------------------------------------------------------------
+// Config
+//-----------------------------------------------------------------------------
 pub struct Config<ColorType = eg::pixelcolor::Rgb565> {
     pub cursor_blinking_interval: u32,
     pub font: &'static eg::mono_font::MonoFont<'static>,
@@ -37,6 +40,9 @@ impl<ColorType: eg::pixelcolor::RgbColor> Config<ColorType> {
     }
 }
 
+//-----------------------------------------------------------------------------
+// GraphicsOutput
+//-----------------------------------------------------------------------------
 pub struct GraphicsOutput<'a, DrawTarget: eg::draw_target::DrawTarget, DelayNs, FnRefresh> {
     target: DrawTarget,
     character_style: eg::mono_font::MonoTextStyle<'static, DrawTarget::Color>,
@@ -122,54 +128,6 @@ where
         }
     }
 }
-
-struct Utf8Accumulator {
-    buf: [u8; 8],
-    idx: u8,
-    idx_end: u8,
-}
-
-impl Utf8Accumulator {
-    fn new() -> Self {
-        Self { buf: [0; 8], idx: 0, idx_end: 0 }
-    }
-
-    fn reset(&mut self) {
-        self.idx = 0;
-        self.idx_end = 0;
-    }
-
-    fn push(&mut self, byte: u8) -> bool {
-        if self.idx == 0 {
-            self.buf[0] = byte;
-            self.idx = 1;
-            if byte & 0x80 == 0x00 {
-                self.idx_end = 1;
-                return true;
-            } else if byte & 0xe0 == 0xc0 {
-                self.idx_end = 2;
-            } else if byte & 0xf0 == 0xe0 {
-                self.idx_end = 3;
-            } else if byte & 0xf8 == 0xf0 {
-                self.idx_end = 4;
-            } else {
-                self.reset();
-            };
-        } else if byte & 0xc0 == 0x80 {
-            self.buf[self.idx as usize] = byte;
-            self.idx += 1;
-            return self.idx == self.idx_end;
-        } else {
-            self.reset();
-        }
-        false
-    }
-
-    fn get_result(&self) -> &str {
-        unsafe { core::str::from_utf8_unchecked(&self.buf[..self.idx_end as usize]) }
-    }
-}
-
 
 impl<DrawTarget, DelayNs, FnRefresh, ColorType> GraphicsOutput<'_, DrawTarget, DelayNs, FnRefresh>
 where
@@ -281,5 +239,55 @@ where
             self.draw_cursor(self.cursor_blinking_toggle);
             self.refresh();
         }
+    }
+}
+
+//-----------------------------------------------------------------------------
+// Utf8Accumulator
+//-----------------------------------------------------------------------------
+struct Utf8Accumulator {
+    buf: [u8; 8],
+    idx: u8,
+    idx_end: u8,
+}
+
+impl Utf8Accumulator {
+    fn new() -> Self {
+        Self { buf: [0; 8], idx: 0, idx_end: 0 }
+    }
+
+    fn reset(&mut self) {
+        self.idx = 0;
+        self.idx_end = 0;
+    }
+
+    fn push(&mut self, byte: u8) -> bool {
+        if self.idx == 0 {
+            self.buf[0] = byte;
+            self.idx = 1;
+            if byte & 0x80 == 0x00 {
+                self.idx_end = 1;
+                return true;
+            } else if byte & 0xe0 == 0xc0 {
+                self.idx_end = 2;
+            } else if byte & 0xf0 == 0xe0 {
+                self.idx_end = 3;
+            } else if byte & 0xf8 == 0xf0 {
+                self.idx_end = 4;
+            } else {
+                self.reset();
+            };
+        } else if byte & 0xc0 == 0x80 {
+            self.buf[self.idx as usize] = byte;
+            self.idx += 1;
+            return self.idx == self.idx_end;
+        } else {
+            self.reset();
+        }
+        false
+    }
+
+    fn get_result(&self) -> &str {
+        unsafe { core::str::from_utf8_unchecked(&self.buf[..self.idx_end as usize]) }
     }
 }
