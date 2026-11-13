@@ -82,18 +82,18 @@ impl<'a> RoundBuffer<'a> {
         Ok(())
     }
 
-    pub fn move_index_forward(&self, index: &mut usize) -> bool {
-        if *index == Self::IDX_NONE {
+    pub fn seek_item_forward(&self, idx_item: &mut usize) -> bool {
+        if *idx_item == Self::IDX_NONE {
             if self.is_empty() { return false; }
-            *index = self.idx_top;
-        } else if *index == self.idx_bottom {
+            *idx_item = self.idx_top;
+        } else if *idx_item == self.idx_bottom {
             return false;
         } else {
-            *index = {
-                let mut idx = *index;
+            *idx_item = {
+                let mut idx = *idx_item;
                 while self.buf[idx] != 0x00 {
                     idx = if idx + 1 < self.buf.len() { idx + 1 } else { 0 };
-                    assert!(idx != *index, "Failed to find null terminator in buffer");
+                    assert!(idx != *idx_item, "Failed to find null terminator in buffer");
                 }
                 if idx + 1 < self.buf.len() { idx + 1 } else { 0 }
             };
@@ -101,19 +101,20 @@ impl<'a> RoundBuffer<'a> {
         true
     }
 
-    pub fn move_index_backward(&self, index: &mut usize) -> bool {
-        self.move_index_backward_n(index, 1)
+    pub fn seek_item_backward(&self, idx_item: &mut usize) -> bool {
+        self.seek_item_backward_n(idx_item, 1)
     }
 
-    pub fn move_index_backward_n(&self, index: &mut usize, n: usize) -> bool {
-        if *index == Self::IDX_NONE {
+    pub fn seek_item_backward_n(&self, idx_item: &mut usize, n: usize) -> bool {
+        if *idx_item == Self::IDX_NONE {
             if self.is_empty() { return false; }
-            *index = self.idx_bottom;
+            *idx_item = self.idx_bottom;
         } else {
+            let mut idx_seek = *idx_item;
             for _ in 0..n {
-                if *index == self.idx_top { return false; }
-                *index = {
-                    let mut idx = *index;
+                if idx_seek == self.idx_top { return false; }
+                idx_seek = {
+                    let mut idx = idx_seek;
                     idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
                     let mut idx_start;
                     loop {
@@ -121,11 +122,12 @@ impl<'a> RoundBuffer<'a> {
                         if idx_start == self.idx_top { break; }
                         idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
                         if self.buf[idx] == 0x00 { break; }
-                        assert!(idx != *index, "Failed to find null terminator in buffer");
+                        assert!(idx != idx_seek, "Failed to find null terminator in buffer");
                     }
                     idx_start
                 };
             }
+            *idx_item = idx_seek;
         }
         true
     }

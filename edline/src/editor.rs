@@ -207,9 +207,9 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         let line_buf_stripped = &self.line_buf[idx_start..idx_end];
         if idx_start != idx_end {
             let mut skip_push = false;
-            let mut index = RoundBuffer::IDX_NONE;
-            if self.history_buf.move_index_backward(&mut index) {
-                let (first, second) = self.history_buf.get_item(index).unwrap();
+            let mut idx_item = RoundBuffer::IDX_NONE;
+            if self.history_buf.seek_item_backward(&mut idx_item) {
+                let (first, second) = self.history_buf.get_item(idx_item).unwrap();
                 skip_push =
                     self.idx_end == first.len() + second.len() &&
                     line_buf_stripped[..first.len()].cmp(first) == core::cmp::Ordering::Equal &&
@@ -228,7 +228,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
 
     pub async fn recall_history_prev(&mut self) {
         let width = self.calc_width(0, self.idx_cur);
-        if self.history_buf.move_index_backward(&mut self.index_history) {
+        if self.history_buf.seek_item_backward(&mut self.index_history) {
             let (first, second) = self.history_buf.get_item(self.index_history).unwrap();
             let idx_end = first.len() + second.len();
             assert!(idx_end <= self.line_buf.len());
@@ -244,7 +244,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
 
     pub async fn recall_history_next(&mut self) {
         let width = self.calc_width(0, self.idx_cur);
-        if self.history_buf.move_index_forward(&mut self.index_history) {
+        if self.history_buf.seek_item_forward(&mut self.index_history) {
             let (first, second) = self.history_buf.get_item(self.index_history).unwrap();
             let idx_end = first.len() + second.len();
             assert!(idx_end <= self.line_buf.len());

@@ -98,9 +98,9 @@ pub fn print_items(round_buf: &edline::RoundBuffer) {
     let mut items_fwd: Vec<String> = Vec::new();
     println!("Items (forward):");
     let mut nitems = 0;
-    let mut index = edline::RoundBuffer::IDX_NONE;
-    while round_buf.move_index_forward(&mut index) {
-        let (first, second) = round_buf.get_item(index).unwrap();
+    let mut idx_item = edline::RoundBuffer::IDX_NONE;
+    while round_buf.seek_item_forward(&mut idx_item) {
+        let (first, second) = round_buf.get_item(idx_item).unwrap();
         let (first, second) = (str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
         let item = first.to_string() + second;
         println!("\"{}\" (\"{}\" + \"{}\")", item, first, second);
@@ -111,9 +111,9 @@ pub fn print_items(round_buf: &edline::RoundBuffer) {
     let mut items_bwd: Vec<String> = Vec::new();
     println!();
     println!("Items (backward):");
-    let mut index = edline::RoundBuffer::IDX_NONE;
-    while round_buf.move_index_backward(&mut index) {
-        let (first, second) = round_buf.get_item(index).unwrap();
+    let mut idx_item = edline::RoundBuffer::IDX_NONE;
+    while round_buf.seek_item_backward(&mut idx_item) {
+        let (first, second) = round_buf.get_item(idx_item).unwrap();
         let (first, second) = (str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
         let item = first.to_string() + second;
         println!("\"{}\" (\"{}\" + \"{}\")", item, first, second);
