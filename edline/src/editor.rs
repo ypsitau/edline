@@ -9,6 +9,7 @@ use crate::graphics_output::GraphicsOutput;
 use embedded_graphics as eg;
 use embedded_hal_async as hal_async;
 use embedded_keycode as keycode;
+use unicode_width::UnicodeWidthStr;
 pub use crate::console_output::Config as ConsoleConfig;
 pub use crate::graphics_output::Config as GraphicsConfig;
 
@@ -369,7 +370,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     pub fn calc_width(&self, idx_start: usize, idx_end: usize) -> usize {
         let text = core::str::from_utf8(&self.line_buf[idx_start..idx_end])
             .expect("line buffer contains invalid UTF-8");
-        unicode_width::UnicodeWidthStr::width(text)
+        UnicodeWidthStr::width(text)
     }
 
     fn strip(buf: &[u8]) -> (usize, usize) {

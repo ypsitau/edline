@@ -2,6 +2,7 @@ use embedded_hal_async as hal_async;
 use embedded_graphics as eg;
 use embedded_graphics::prelude::*;
 use crate::round_buffer::RoundBuffer;
+use unicode_width::UnicodeWidthStr;
 
 //-----------------------------------------------------------------------------
 // Config
@@ -57,7 +58,7 @@ pub struct GraphicsOutput<'a, DrawTarget: eg::draw_target::DrawTarget, DelayNs, 
     y_advance: i32,
     i_col: i32,
     i_row: i32,
-    _n_cols: i32,
+    n_cols: i32,
     n_rows: i32,
     cursor_visible: bool,
     cursor_blinking_toggle: bool,
@@ -99,7 +100,7 @@ where
             i_col: 0,
             i_row: 0,
             x_advance, y_advance,
-            _n_cols: n_cols, n_rows,
+            n_cols: n_cols, n_rows,
             cursor_visible: false,
             cursor_blinking_toggle: false,
         }
@@ -120,28 +121,41 @@ where
     fn advance_row(&mut self) {
         if self.i_row + 1 < self.n_rows {
             self.i_row += 1;
-        } else {
-            let mut idx_item = RoundBuffer::IDX_NONE;
-            let mut utf8_acc = Utf8Accumulator::new();
-            let mut i_row = self.n_rows - 2;
-            while i_row >= 0 && self.rollback_buf.seek_item_backward(&mut idx_item) {
-                let mut i_col = 0;
-                utf8_acc.reset();
-                let (first, second) = self.rollback_buf.get_item(idx_item).unwrap();
-                let (first_s, second_s) = (str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
-                println!("i_row: {} {}{}", i_row, first_s, second_s);
-                for byte in first.iter().chain(second.iter()) {
-                    if utf8_acc.push(*byte) {
-                        let s = utf8_acc.get_result();
-                        let pt = self.calc_point(i_col, i_row);
-                        eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
-                            .draw(&mut self.target).ok();
-                        i_col += 1;
-                        utf8_acc.reset();
-                    }
+            return;
+        }
+        let width = self.target.bounding_box().size.width as i32;
+        let mut idx_item = RoundBuffer::IDX_NONE;
+        let mut utf8_acc = Utf8Accumulator::new();
+        let mut i_row = self.n_rows - 1;
+        let pt = self.calc_point(0, i_row);
+        eg::primitives::Rectangle::new(pt, Size::new((width - pt.x) as u32, self.y_advance as u32))
+            .into_styled(eg::primitives::PrimitiveStyle::with_fill(self.config.background_color))
+            .draw(&mut self.target).ok();
+
+        i_row -= 1;
+        while i_row >= 0 && self.rollback_buf.seek_item_backward(&mut idx_item) {
+            let mut i_col = 0;
+            utf8_acc.reset();
+            let (first, second) = self.rollback_buf.get_item(idx_item).unwrap();
+            let (first_s, second_s) = (str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
+            //println!("i_row: {} {}{}", i_row, first_s, second_s);
+            for byte in first.iter().chain(second.iter()) {
+                if utf8_acc.push(*byte) {
+                    let s = utf8_acc.get_result();
+                    let pt = self.calc_point(i_col, i_row);
+                    eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
+                        .draw(&mut self.target).ok();
+                    i_col += UnicodeWidthStr::width(s) as i32;
+                    utf8_acc.reset();
                 }
-                i_row -= 1;
             }
+            if i_col < self.n_cols {
+                let pt = self.calc_point(i_col, i_row);
+                eg::primitives::Rectangle::new(pt, Size::new((width - pt.x) as u32, self.y_advance as u32))
+                    .into_styled(eg::primitives::PrimitiveStyle::with_fill(self.config.background_color))
+                    .draw(&mut self.target).ok();
+            }
+            i_row -= 1;
         }
     }
 }
@@ -208,7 +222,7 @@ where
                     let pt = self.calc_point(self.i_col, self.i_row);
                     eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
                         .draw(&mut self.target).ok();
-                    self.i_col += 1;
+                    self.i_col += UnicodeWidthStr::width(s) as i32;
                 }
                 self.utf8_acc.reset();
             }
@@ -247,11 +261,11 @@ where
     }
 
     async fn delete_to_line_end(&mut self) {
+        let pt = self.calc_point(self.i_col, self.i_row);
+        let width = self.target.bounding_box().size.width as i32;
+        if pt.x >= width { return; }
         self.hide_cursor();
-        let size = Size::new(
-            self.target.bounding_box().size.width.saturating_sub(self.calc_x(self.i_col).max(0) as u32),
-            self.y_advance as u32);
-        eg::primitives::Rectangle::new(self.calc_point(self.i_col, self.i_row), size)
+        eg::primitives::Rectangle::new(pt, Size::new((width - pt.x) as u32, self.y_advance as u32))
             .into_styled(eg::primitives::PrimitiveStyle::with_fill(self.config.background_color))
             .draw(&mut self.target).ok();
         self.show_cursor();
