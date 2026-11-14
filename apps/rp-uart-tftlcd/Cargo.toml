@@ -37,7 +37,7 @@ mipidsi = { version = "0.10.0" }
 ssd1306 = { version = "0.10.0" }
 
 edline = { path = "../../edline" }
-serkey = { version = "0.1.4" }
+serkey = { version = "0.2.0" }
 
 [target.'cfg( target_arch = "arm" )'.dependencies]
 panic-probe = { version = "1", features = ["print-defmt"] }

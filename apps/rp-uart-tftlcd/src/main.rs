@@ -29,6 +29,7 @@ async fn main(_spawner: emb::executor::Spawner) {
     let board = board_rp::init_with_mipidsi::<1, _>(mipidsi::models::ST7789, (240, 320),
         opts::Orientation::new().rotate(opts::Rotation::Deg180),
         opts::ColorOrder::Rgb, opts::ColorInversion::Inverted);
-    let fut_edline = edline::simple_task_graphics(board.display, board.uart_rx, false, emb::time::Delay, |_| {});
+    let key_reader = serkey::Reader::new(board.uart_rx);
+    let fut_edline = edline::simple_task_graphics(board.display, key_reader, false, emb::time::Delay, |_| {});
     fut_edline.await;
 }
