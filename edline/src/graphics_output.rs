@@ -50,6 +50,7 @@ pub struct GraphicsOutput<'a, DrawTarget: eg::draw_target::DrawTarget, DelayNs, 
     text_style: eg::text::TextStyle,
     rollback_buf: RoundBuffer<'a>,
     work_buf: &'a mut [u8],
+    idx_work_buf: usize,
     config: Config<DrawTarget::Color>,
     delay: DelayNs,
     fn_refresh: FnRefresh,
@@ -93,6 +94,7 @@ where
                 .alignment(eg::text::Alignment::Left).baseline(eg::text::Baseline::Top).build(),
             rollback_buf: RoundBuffer::new(rollback_buf),
             work_buf,
+            idx_work_buf: 0,
             config,
             delay,
             fn_refresh,
@@ -118,6 +120,10 @@ where
         Point::new(self.calc_x(i_col), self.calc_y(i_row))
     }
 
+    fn push_rollback(rollback_buf: &mut RoundBuffer, buf: &[u8]) {
+        rollback_buf.push(buf).unwrap();
+    }
+
     fn advance_row(&mut self) {
         if self.i_row + 1 < self.n_rows {
             self.i_row += 1;
@@ -137,8 +143,8 @@ where
             let mut i_col = 0;
             utf8_acc.reset();
             let (first, second) = self.rollback_buf.get_item(idx_item).unwrap();
-            let (first_s, second_s) = (str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
-            //println!("i_row: {} {}{}", i_row, first_s, second_s);
+            //println!("i_row: {} {}{}", i_row,
+            //    str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
             for byte in first.iter().chain(second.iter()) {
                 if utf8_acc.push(*byte) {
                     let s = utf8_acc.get_result();
@@ -213,27 +219,32 @@ where
     async fn write(&mut self, data: &[u8]) {
         self.hide_cursor();
         for byte in data {
-            if self.utf8_acc.push(*byte) {
-                let s = self.utf8_acc.get_result();
-                if s == "\n" {
+            if !self.utf8_acc.push(*byte) { continue; }
+            let s = self.utf8_acc.get_result();
+            if s == "\r" {
+                // nothing to do
+            } else if s == "\n" {
+                self.i_col = 0;
+                self.i_row += 1;
+            } else {
+                let i_col_next = self.i_col + UnicodeWidthStr::width(s) as i32;
+                if i_col_next >= self.n_cols {
                     self.i_col = 0;
-                    self.advance_row();
-                } else {
-                    let pt = self.calc_point(self.i_col, self.i_row);
-                    eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
-                        .draw(&mut self.target).ok();
-                    self.i_col += UnicodeWidthStr::width(s) as i32;
+                    self.i_row += 1;
                 }
-                self.utf8_acc.reset();
+                let pt = self.calc_point(self.i_col, self.i_row);
+                eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
+                    .draw(&mut self.target).ok();
+                self.i_col = i_col_next;
             }
+            self.utf8_acc.reset();
         }
         self.show_cursor();
     }
 
     async fn print(&mut self, s: &str) {
         self.write(s.as_bytes()).await;
-        // needs to be splitted by lines before pushing to rollback buffer
-        self.rollback_buf.push(s.as_bytes()).unwrap();
+        Self::push_rollback(&mut self.rollback_buf, s.as_bytes());
     }
 
     async fn new_line(&mut self, prompt: &str, line_buf: &[u8]) {
@@ -241,7 +252,7 @@ where
         let idx_next = prompt.as_bytes().len();
         self.work_buf[..idx_next].copy_from_slice(prompt.as_bytes());
         self.work_buf[idx_next..idx_next + line_buf.len()].copy_from_slice(line_buf);
-        self.rollback_buf.push(&self.work_buf[..nbytes_combined]).unwrap();
+        Self::push_rollback(&mut self.rollback_buf, &self.work_buf[..nbytes_combined]);
         self.hide_cursor();
         self.i_col = 0;
         self.advance_row();
