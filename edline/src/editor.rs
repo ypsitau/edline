@@ -62,7 +62,6 @@ pub struct Editor<'a, Output> {
     idx_completion: usize,
     range_result: (usize, usize),
     first_of_line: bool,
-    prompt: &'a str,
     nbytes_prompt: usize,
 }
 
@@ -81,9 +80,17 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             idx_completion: Self::IDX_NONE,
             range_result: (0, 0),
             first_of_line: true,
-            prompt: "> ",
             nbytes_prompt: 0,
         }
+    }
+
+    pub fn set_prompt(&mut self, prompt: &str) {
+        self.line_buf_whole[..prompt.len()].copy_from_slice(prompt.as_bytes());
+        self.nbytes_prompt = prompt.len();
+    }
+
+    pub fn prompt(&self) -> &str {
+        core::str::from_utf8(&self.line_buf_whole[..self.nbytes_prompt]).unwrap_or("")
     }
 
     pub async fn init(&mut self) {
@@ -156,7 +163,8 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     {
         if self.first_of_line {
             self.first_of_line = false;
-            self.output.write(self.prompt.as_bytes()).await;
+            let prompt = &self.line_buf_whole[..self.nbytes_prompt];
+            self.output.write(prompt).await;
         }
         let mut read = core::pin::pin!(reader.read_key());
         loop {
