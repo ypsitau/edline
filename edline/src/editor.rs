@@ -284,9 +284,10 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     pub async fn insert_char(&mut self, c: char) {
         let nbytes = self.insert_char_to_buf(self.idx_cur, c);
         if nbytes == 0 { return; }
+        let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
         let idx_next = self.idx_cur + nbytes;
         if self.idx_end < idx_next { self.idx_end = idx_next; }
-        self.output.write(&self.line_buf_whole[self.idx_cur..self.idx_end]).await;
+        self.output.write(&line_buf[self.idx_cur..self.idx_end]).await;
         if idx_next < self.idx_end {
             self.output.move_cursor_left_n(self.calc_width(idx_next, self.idx_end)).await;
         }
@@ -296,7 +297,8 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     pub async fn delete_char(&mut self) {
         if self.idx_cur >= self.idx_end { return; }
         self.delete_char_from_buf(self.idx_cur);
-        self.output.write(&self.line_buf_whole[self.idx_cur..self.idx_end]).await;
+        let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
+        self.output.write(&line_buf[self.idx_cur..self.idx_end]).await;
         self.output.delete_to_line_end().await;
         if self.idx_cur < self.idx_end {
             self.output.move_cursor_left_n(self.calc_width(self.idx_cur, self.idx_end)).await;
@@ -330,7 +332,8 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     pub async fn move_cursor_left(&mut self) -> bool {
         if self.idx_cur == 0 { return false; }
         let mut idx_next = self.idx_cur - 1;
-        while idx_next > 0 && self.line_buf_whole[idx_next] & 0xC0 == 0x80 {
+        let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
+        while idx_next > 0 && line_buf[idx_next] & 0xC0 == 0x80 {
             idx_next -= 1;
         }
         self.output.move_cursor_left_n(self.calc_width(idx_next, self.idx_cur)).await;
@@ -341,7 +344,8 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     pub async fn move_cursor_right(&mut self) -> bool {
         if self.idx_cur >= self.idx_end { return false; }
         let mut idx_next = self.idx_cur + 1;
-        while idx_next < self.idx_end && self.line_buf_whole[idx_next] & 0xC0 == 0x80 {
+        let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
+        while idx_next < self.idx_end && line_buf[idx_next] & 0xC0 == 0x80 {
             idx_next += 1;
         }
         self.output.move_cursor_right_n(self.calc_width(self.idx_cur, idx_next)).await;
@@ -352,13 +356,14 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     pub fn insert_char_to_buf(&mut self, idx: usize, c: char) -> usize {
         let mut buf_enc = [0; 4];
         let bytes_insert = c.encode_utf8(&mut buf_enc).as_bytes();
-        if self.idx_end + bytes_insert.len() > self.line_buf_whole.len() {
+        let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
+        if self.idx_end + bytes_insert.len() > line_buf.len() {
             return 0;
         }
         if idx < self.idx_end {
-            self.line_buf_whole.copy_within(idx..self.idx_end, idx + bytes_insert.len());
+            line_buf.copy_within(idx..self.idx_end, idx + bytes_insert.len());
         }
-        self.line_buf_whole[idx..idx + bytes_insert.len()].copy_from_slice(bytes_insert);
+        line_buf[idx..idx + bytes_insert.len()].copy_from_slice(bytes_insert);
         self.idx_end += bytes_insert.len();
         bytes_insert.len()
     }
@@ -368,16 +373,18 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             return 0;
         }
         let mut nbytes_delete = 1;
-        while idx + nbytes_delete < self.idx_end && self.line_buf_whole[idx + nbytes_delete] & 0xC0 == 0x80 {
+        let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
+        while idx + nbytes_delete < self.idx_end && line_buf[idx + nbytes_delete] & 0xC0 == 0x80 {
             nbytes_delete += 1;
         }
-        self.line_buf_whole.copy_within(idx + nbytes_delete..self.idx_end, idx);
+        line_buf.copy_within(idx + nbytes_delete..self.idx_end, idx);
         self.idx_end -= nbytes_delete;
         nbytes_delete
     }
 
     pub fn calc_width(&self, idx_start: usize, idx_end: usize) -> usize {
-        let text = core::str::from_utf8(&self.line_buf_whole[idx_start..idx_end])
+        let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
+        let text = core::str::from_utf8(&line_buf[idx_start..idx_end])
             .expect("line buffer contains invalid UTF-8");
         UnicodeWidthStr::width(text)
     }
