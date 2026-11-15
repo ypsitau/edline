@@ -1,6 +1,5 @@
 use core::fmt::Write as _;
 use core::future::Future;
-use embedded_graphics::primitives::line;
 use embedded_io_async as io_async;
 use heapless::String;
 use static_cell::StaticCell;

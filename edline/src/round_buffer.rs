@@ -1,3 +1,8 @@
+use crate::utf8_accumulator::Utf8Accumulator;
+
+//-----------------------------------------------------------------------------
+// RoundBuffer
+//-----------------------------------------------------------------------------
 pub struct RoundBuffer<'a> {
     buf: &'a mut [u8],
     idx_top: usize,
