@@ -1,5 +1,6 @@
 use core::fmt::Write as _;
 use core::future::Future;
+use embedded_graphics::primitives::line;
 use embedded_io_async as io_async;
 use heapless::String;
 use static_cell::StaticCell;
@@ -52,7 +53,7 @@ impl Output for DummyOutput {
 }
 
 pub struct Editor<'a, Output> {
-    line_buf: &'a mut [u8],
+    line_buf_whole: &'a mut [u8],
     history_buf: RoundBuffer<'a>,
     index_history: usize,
     output: Output,
@@ -62,15 +63,16 @@ pub struct Editor<'a, Output> {
     range_result: (usize, usize),
     first_of_line: bool,
     prompt: &'a str,
+    nbytes_prompt: usize,
 }
 
 impl<'a, OutputT: Output> Editor<'a, OutputT> {
     const IDX_NONE: usize = usize::MAX;
 
-    pub fn new(line_buf: &'a mut [u8], history_buf: &'a mut [u8], output: OutputT) -> Self {
-        assert!(line_buf.len() < history_buf.len(), "line buffer must be smaller than history buffer");
+    pub fn new(line_buf_whole: &'a mut [u8], history_buf: &'a mut [u8], output: OutputT) -> Self {
+        assert!(line_buf_whole.len() < history_buf.len(), "line buffer must be smaller than history buffer");
         Self {
-            line_buf,
+            line_buf_whole,
             history_buf: RoundBuffer::new(history_buf),
             index_history: RoundBuffer::IDX_NONE,
             output,
@@ -80,6 +82,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             range_result: (0, 0),
             first_of_line: true,
             prompt: "> ",
+            nbytes_prompt: 0,
         }
     }
 
@@ -184,9 +187,10 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     }
 
     pub fn get_result(&self) -> &[u8] {
+        let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
         let (idx_start, idx_end) = self.range_result;
-        let nbytes_copy = (idx_end - idx_start).min(self.line_buf.len());
-        &self.line_buf[idx_start..idx_start + nbytes_copy]
+        let nbytes_copy = (idx_end - idx_start).min(line_buf.len());
+        &line_buf[idx_start..idx_start + nbytes_copy]
     }
 
     pub fn get_result_str(&self) -> &str {
@@ -204,8 +208,9 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     }
 
     pub async fn enter(&mut self) {
-        let (idx_start, idx_end) = Self::strip(&self.line_buf[..self.idx_end]);
-        let line_buf_stripped = &self.line_buf[idx_start..idx_end];
+        let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
+        let (idx_start, idx_end) = Self::strip(&line_buf[..self.idx_end]);
+        let line_buf_stripped = &line_buf[idx_start..idx_end];
         if idx_start != idx_end {
             let mut skip_push = false;
             let mut idx_item = RoundBuffer::IDX_NONE;
@@ -221,7 +226,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             }
         }
         self.range_result = (idx_start, idx_end);
-        self.output.new_line(&self.prompt, &self.line_buf[..self.idx_end]).await;
+        self.output.new_line(&self.prompt, &line_buf[..self.idx_end]).await;
         self.idx_cur = 0;
         self.idx_end = 0;
         self.first_of_line = true;
@@ -232,13 +237,14 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         if self.history_buf.seek_item_backward(&mut self.index_history) {
             let (first, second) = self.history_buf.get_item(self.index_history).unwrap();
             let idx_end = first.len() + second.len();
-            assert!(idx_end <= self.line_buf.len());
-            self.line_buf[..first.len()].copy_from_slice(first);
-            self.line_buf[first.len()..idx_end].copy_from_slice(second);
+            let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
+            assert!(idx_end <= line_buf.len());
+            line_buf[..first.len()].copy_from_slice(first);
+            line_buf[first.len()..idx_end].copy_from_slice(second);
             self.idx_end = idx_end;
             self.idx_cur = idx_end;
             self.output.move_cursor_left_n(width).await;
-            self.output.write(&self.line_buf[..idx_end]).await;
+            self.output.write(&line_buf[..idx_end]).await;
             self.output.delete_to_line_end().await;
         }
     }
@@ -248,13 +254,14 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         if self.history_buf.seek_item_forward(&mut self.index_history) {
             let (first, second) = self.history_buf.get_item(self.index_history).unwrap();
             let idx_end = first.len() + second.len();
-            assert!(idx_end <= self.line_buf.len());
-            self.line_buf[..first.len()].copy_from_slice(first);
-            self.line_buf[first.len()..idx_end].copy_from_slice(second);
+            let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
+            assert!(idx_end <= line_buf.len());
+            line_buf[..first.len()].copy_from_slice(first);
+            line_buf[first.len()..idx_end].copy_from_slice(second);
             self.idx_end = idx_end;
             self.idx_cur = idx_end;
             self.output.move_cursor_left_n(width).await;
-            self.output.write(&self.line_buf[..idx_end]).await;
+            self.output.write(&line_buf[..idx_end]).await;
             self.output.delete_to_line_end().await;
         }
     }
@@ -262,13 +269,15 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     pub async fn fulfill_completion(&mut self, s: &str) {
         if self.idx_completion == Self::IDX_NONE { return; }
         let idx_end = self.idx_completion + s.len();
-        if idx_end > self.line_buf.len() { return; }
+        let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
+        if idx_end > line_buf.len() { return; }
         let width = self.calc_width(self.idx_completion, self.idx_end);
-        self.line_buf[self.idx_completion..idx_end].copy_from_slice(s.as_bytes());
+        let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
+        line_buf[self.idx_completion..idx_end].copy_from_slice(s.as_bytes());
         self.idx_end = idx_end;
         self.idx_cur = idx_end;
         self.output.move_cursor_left_n(width).await;
-        self.output.write(&self.line_buf[self.idx_completion..idx_end]).await;
+        self.output.write(&line_buf[self.idx_completion..idx_end]).await;
         self.output.delete_to_line_end().await;
     }
 
@@ -277,7 +286,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         if nbytes == 0 { return; }
         let idx_next = self.idx_cur + nbytes;
         if self.idx_end < idx_next { self.idx_end = idx_next; }
-        self.output.write(&self.line_buf[self.idx_cur..self.idx_end]).await;
+        self.output.write(&self.line_buf_whole[self.idx_cur..self.idx_end]).await;
         if idx_next < self.idx_end {
             self.output.move_cursor_left_n(self.calc_width(idx_next, self.idx_end)).await;
         }
@@ -287,7 +296,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     pub async fn delete_char(&mut self) {
         if self.idx_cur >= self.idx_end { return; }
         self.delete_char_from_buf(self.idx_cur);
-        self.output.write(&self.line_buf[self.idx_cur..self.idx_end]).await;
+        self.output.write(&self.line_buf_whole[self.idx_cur..self.idx_end]).await;
         self.output.delete_to_line_end().await;
         if self.idx_cur < self.idx_end {
             self.output.move_cursor_left_n(self.calc_width(self.idx_cur, self.idx_end)).await;
@@ -321,7 +330,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     pub async fn move_cursor_left(&mut self) -> bool {
         if self.idx_cur == 0 { return false; }
         let mut idx_next = self.idx_cur - 1;
-        while idx_next > 0 && self.line_buf[idx_next] & 0xC0 == 0x80 {
+        while idx_next > 0 && self.line_buf_whole[idx_next] & 0xC0 == 0x80 {
             idx_next -= 1;
         }
         self.output.move_cursor_left_n(self.calc_width(idx_next, self.idx_cur)).await;
@@ -332,7 +341,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     pub async fn move_cursor_right(&mut self) -> bool {
         if self.idx_cur >= self.idx_end { return false; }
         let mut idx_next = self.idx_cur + 1;
-        while idx_next < self.idx_end && self.line_buf[idx_next] & 0xC0 == 0x80 {
+        while idx_next < self.idx_end && self.line_buf_whole[idx_next] & 0xC0 == 0x80 {
             idx_next += 1;
         }
         self.output.move_cursor_right_n(self.calc_width(self.idx_cur, idx_next)).await;
@@ -343,13 +352,13 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     pub fn insert_char_to_buf(&mut self, idx: usize, c: char) -> usize {
         let mut buf_enc = [0; 4];
         let bytes_insert = c.encode_utf8(&mut buf_enc).as_bytes();
-        if self.idx_end + bytes_insert.len() > self.line_buf.len() {
+        if self.idx_end + bytes_insert.len() > self.line_buf_whole.len() {
             return 0;
         }
         if idx < self.idx_end {
-            self.line_buf.copy_within(idx..self.idx_end, idx + bytes_insert.len());
+            self.line_buf_whole.copy_within(idx..self.idx_end, idx + bytes_insert.len());
         }
-        self.line_buf[idx..idx + bytes_insert.len()].copy_from_slice(bytes_insert);
+        self.line_buf_whole[idx..idx + bytes_insert.len()].copy_from_slice(bytes_insert);
         self.idx_end += bytes_insert.len();
         bytes_insert.len()
     }
@@ -359,16 +368,16 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             return 0;
         }
         let mut nbytes_delete = 1;
-        while idx + nbytes_delete < self.idx_end && self.line_buf[idx + nbytes_delete] & 0xC0 == 0x80 {
+        while idx + nbytes_delete < self.idx_end && self.line_buf_whole[idx + nbytes_delete] & 0xC0 == 0x80 {
             nbytes_delete += 1;
         }
-        self.line_buf.copy_within(idx + nbytes_delete..self.idx_end, idx);
+        self.line_buf_whole.copy_within(idx + nbytes_delete..self.idx_end, idx);
         self.idx_end -= nbytes_delete;
         nbytes_delete
     }
 
     pub fn calc_width(&self, idx_start: usize, idx_end: usize) -> usize {
-        let text = core::str::from_utf8(&self.line_buf[idx_start..idx_end])
+        let text = core::str::from_utf8(&self.line_buf_whole[idx_start..idx_end])
             .expect("line buffer contains invalid UTF-8");
         UnicodeWidthStr::width(text)
     }
@@ -479,9 +488,9 @@ pub async fn simple_task_common(mut editor: Editor<'_, impl Output>, mut reader:
             match editor.process_key(key).await {
                 Event::Entered => {
                     editor.read_result_str(&mut sbuf_result).ok();
-                    //editor.print("Result: ").await;
-                    //editor.print(&sbuf_result).await;
-                    //editor.print("\r\n").await;
+                    editor.print("Result: ").await;
+                    editor.print(&sbuf_result).await;
+                    editor.print("\r\n").await;
                 }
                 Event::ReqCompletionFirst => {
                     cnt_completition = 0;
