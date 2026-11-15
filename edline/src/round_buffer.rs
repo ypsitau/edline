@@ -1,3 +1,4 @@
+use unicode_width::UnicodeWidthStr;
 use crate::utf8_accumulator::Utf8Accumulator;
 
 //-----------------------------------------------------------------------------
@@ -35,20 +36,34 @@ impl<'a> RoundBuffer<'a> {
 
     pub fn count(&self) -> usize { self.n_items }
 
-    pub fn wrap_push(&mut self, src: &[u8], _n_cols_wrap: usize) -> Result<(), ()> {
+    pub fn wrap_push(&mut self, src: &[u8], n_cols_wrap: usize) -> Result<(), ()> {
         let mut idx_start = 0;
         let mut idx_end = 0;
         let mut n_cols = 0;
-        
-        loop {
+        let mut utf8_acc = Utf8Accumulator::new();
+        while idx_end < src.len() {
             if src[idx_end] == b'\n' {
                 self.push(&src[idx_start..idx_end])?;
                 idx_start = idx_end + 1;
-            } else {
-
+            } else if utf8_acc.push(src[idx_end]) {
+                let s = utf8_acc.get_result();
+                let len_char = s.len();
+                let n_cols_char = UnicodeWidthStr::width(s);
+                utf8_acc.reset();
+                if n_cols + n_cols_char < n_cols_wrap {
+                    n_cols += n_cols_char;
+                } else if n_cols + n_cols_char == n_cols_wrap {
+                    self.push(&src[idx_start..=idx_end])?;
+                    idx_start = idx_end + 1;
+                    n_cols = 0;
+                } else {
+                    let idx_prev = idx_end + 1 - len_char;
+                    self.push(&src[idx_start..idx_prev])?;
+                    idx_start = idx_prev;
+                    n_cols = n_cols_char;
+                }
             }
             idx_end += 1;
-            if idx_end >= src.len() { break; }
         }
         if idx_start < src.len() {
             self.push(&src[idx_start..])?;

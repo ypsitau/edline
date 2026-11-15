@@ -495,6 +495,7 @@ pub async fn simple_task_common(mut editor: Editor<'_, impl Output>, mut reader:
     editor.set_prompt("> ");
     let mut cnt_completition = 0;
     let mut sbuf_completion: heapless::String<128> = heapless::String::new();
+    let mut sbuf = String::<128>::new();
     loop {
         let key = editor.read_key(&mut reader).await;
         if let Ok(key) = key {
@@ -504,6 +505,9 @@ pub async fn simple_task_common(mut editor: Editor<'_, impl Output>, mut reader:
             match editor.process_key(key).await {
                 Event::Entered => {
                     editor.read_result_str(&mut sbuf_result).ok();
+                    sbuf.clear();
+                    write!(sbuf, "Result: {}\r\n", sbuf_result).ok();
+                    editor.print(&sbuf).await;
                     //editor.print("Result: ").await;
                     //editor.print(&sbuf_result).await;
                     //editor.print("\r\n").await;
