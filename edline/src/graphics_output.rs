@@ -247,12 +247,8 @@ where
         Self::push_rollback(&mut self.rollback_buf, s.as_bytes());
     }
 
-    async fn new_line(&mut self, prompt: &str, line_buf: &[u8]) {
-        let nbytes_combined = prompt.as_bytes().len() + line_buf.len();
-        let idx_next = prompt.as_bytes().len();
-        self.work_buf[..idx_next].copy_from_slice(prompt.as_bytes());
-        self.work_buf[idx_next..idx_next + line_buf.len()].copy_from_slice(line_buf);
-        Self::push_rollback(&mut self.rollback_buf, &self.work_buf[..nbytes_combined]);
+    async fn new_line(&mut self, line_buf_combined: &[u8]) {
+        Self::push_rollback(&mut self.rollback_buf, line_buf_combined);
         self.hide_cursor();
         self.i_col = 0;
         self.advance_row();

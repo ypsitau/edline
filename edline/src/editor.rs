@@ -29,7 +29,7 @@ pub trait Output {
     fn init(&mut self) -> impl Future<Output = ()>;
     fn write(&mut self, data: &[u8]) -> impl Future<Output = ()>;
     fn print(&mut self, s: &str) -> impl Future<Output = ()>;
-    fn new_line(&mut self, prompt: &str, line_buf: &[u8]) -> impl Future<Output = ()>; 
+    fn new_line(&mut self, line_buf_combined: &[u8]) -> impl Future<Output = ()>; 
     fn move_cursor_left_n(&mut self, n: usize) -> impl Future<Output = ()>;
     fn move_cursor_right_n(&mut self, n: usize) -> impl Future<Output = ()>;
     fn delete_to_line_end(&mut self) -> impl Future<Output = ()>;
@@ -46,7 +46,7 @@ impl Output for DummyOutput {
     async fn init(&mut self) {}
     async fn write(&mut self, _data: &[u8]) {}
     async fn print(&mut self, _s: &str) {}
-    async fn new_line(&mut self, _prompt: &str, _line_buf: &[u8]) {}
+    async fn new_line(&mut self, _line_buf_combined: &[u8]) {}
     async fn move_cursor_left_n(&mut self, _n: usize) {}
     async fn move_cursor_right_n(&mut self, _n: usize) {}
     async fn delete_to_line_end(&mut self) {}
@@ -85,6 +85,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     }
 
     pub fn set_prompt(&mut self, prompt: &str) {
+        self.line_buf_whole.copy_within(self.nbytes_prompt..self.nbytes_prompt + self.idx_end, prompt.len());
         self.line_buf_whole[..prompt.len()].copy_from_slice(prompt.as_bytes());
         self.nbytes_prompt = prompt.len();
     }
@@ -234,7 +235,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             }
         }
         self.range_result = (idx_start, idx_end);
-        self.output.new_line(&self.prompt, &line_buf[..self.idx_end]).await;
+        self.output.new_line(&self.line_buf_whole[..self.nbytes_prompt + self.idx_end]).await;
         self.idx_cur = 0;
         self.idx_end = 0;
         self.first_of_line = true;
@@ -492,6 +493,7 @@ where
 pub async fn simple_task_common(mut editor: Editor<'_, impl Output>, mut reader: impl keycode::ReadKey, enable_break: bool) {
     let mut sbuf_result: heapless::String<128> = heapless::String::new();
     editor.init().await;
+    editor.set_prompt("> ");
     let mut cnt_completition = 0;
     let mut sbuf_completion: heapless::String<128> = heapless::String::new();
     loop {
@@ -503,9 +505,9 @@ pub async fn simple_task_common(mut editor: Editor<'_, impl Output>, mut reader:
             match editor.process_key(key).await {
                 Event::Entered => {
                     editor.read_result_str(&mut sbuf_result).ok();
-                    editor.print("Result: ").await;
-                    editor.print(&sbuf_result).await;
-                    editor.print("\r\n").await;
+                    //editor.print("Result: ").await;
+                    //editor.print(&sbuf_result).await;
+                    //editor.print("\r\n").await;
                 }
                 Event::ReqCompletionFirst => {
                     cnt_completition = 0;

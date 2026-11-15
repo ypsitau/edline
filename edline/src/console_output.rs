@@ -36,7 +36,7 @@ impl<Writer: io_async::Write> crate::editor::Output for ConsoleOutput<Writer> {
         self.write(s.as_bytes()).await;
     }
 
-    async fn new_line(&mut self, _prompt: &str, _line_buf: &[u8]) {
+    async fn new_line(&mut self, _line_buf_combined: &[u8]) {
         self.writer.write_all(b"\r\n").await.unwrap();
         self.writer.flush().await.unwrap();
     }
