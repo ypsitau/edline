@@ -65,8 +65,8 @@ pub fn print_report(round_buf: &mut edline::RoundBuffer) {
 pub fn print_buf(round_buf: &edline::RoundBuffer) {
     const NCOLS: usize = 16;
     println!("first:0x{:04x} last:0x{:04x} write:0x{:04x} count:{}",
-        round_buf.idx_top(), round_buf.idx_bottom(), round_buf.idx_write(), round_buf.count());
-    let mut idx = 0;
+        round_buf.offset_top(), round_buf.offset_bottom(), round_buf.offset_write(), round_buf.count());
+    let mut offset = 0;
     for chunk in round_buf.buf().chunks(NCOLS) {
         for byte in chunk {
             print!("{:02x} ", byte);
@@ -84,11 +84,11 @@ pub fn print_buf(round_buf: &edline::RoundBuffer) {
         println!();
         for _ in 0..chunk.len() {
             let mut n = 0;
-            if idx == round_buf.idx_top() { print!("T"); n += 1;}
-            if idx == round_buf.idx_bottom() { print!("B"); n += 1; }
-            if idx == round_buf.idx_write() { print!("W"); n += 1; }
+            if offset == round_buf.offset_top() { print!("T"); n += 1;}
+            if offset == round_buf.offset_bottom() { print!("B"); n += 1; }
+            if offset == round_buf.offset_write() { print!("W"); n += 1; }
             for _ in n..3 { print!(" "); }
-            idx += 1;
+            offset += 1;
         }
         println!();
     }
@@ -98,9 +98,9 @@ pub fn print_items(round_buf: &edline::RoundBuffer) {
     let mut items_fwd: Vec<String> = Vec::new();
     println!("Items (forward):");
     let mut nitems = 0;
-    let mut idx_item = edline::RoundBuffer::IDX_NONE;
-    while round_buf.seek_item_forward(&mut idx_item) {
-        let (first, second) = round_buf.get_item(idx_item).unwrap();
+    let mut offset_seek = edline::RoundBuffer::OFFSET_NONE;
+    while round_buf.seek_item_forward(&mut offset_seek) {
+        let (first, second) = round_buf.get_item(offset_seek).unwrap();
         let (first, second) = (str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
         let item = first.to_string() + second;
         println!("\"{}\" (\"{}\" + \"{}\")", item, first, second);
@@ -111,9 +111,9 @@ pub fn print_items(round_buf: &edline::RoundBuffer) {
     let mut items_bwd: Vec<String> = Vec::new();
     println!();
     println!("Items (backward):");
-    let mut idx_item = edline::RoundBuffer::IDX_NONE;
-    while round_buf.seek_item_backward(&mut idx_item) {
-        let (first, second) = round_buf.get_item(idx_item).unwrap();
+    let mut offset_seek = edline::RoundBuffer::OFFSET_NONE;
+    while round_buf.seek_item_backward(&mut offset_seek) {
+        let (first, second) = round_buf.get_item(offset_seek).unwrap();
         let (first, second) = (str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
         let item = first.to_string() + second;
         println!("\"{}\" (\"{}\" + \"{}\")", item, first, second);

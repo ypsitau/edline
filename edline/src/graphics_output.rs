@@ -127,7 +127,7 @@ where
             return;
         }
         let width = self.target.bounding_box().size.width as i32;
-        let mut idx_item = RoundBuffer::IDX_NONE;
+        let mut offset_seek = RoundBuffer::OFFSET_NONE;
         let mut utf8_acc = Utf8Accumulator::new();
         let mut i_row = self.n_rows - 1;
         let pt = self.calc_point(0, i_row);
@@ -136,10 +136,10 @@ where
             .draw(&mut self.target).ok();
 
         i_row -= 1;
-        while i_row >= 0 && self.rollback_buf.seek_item_backward(&mut idx_item) {
+        while i_row >= 0 && self.rollback_buf.seek_item_backward(&mut offset_seek) {
             let mut i_col = 0;
             utf8_acc.reset();
-            let (first, second) = self.rollback_buf.get_item(idx_item).unwrap();
+            let (first, second) = self.rollback_buf.get_item(offset_seek).unwrap();
             //println!("i_row: {} {}{}", i_row,
             //    str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
             for byte in first.iter().chain(second.iter()) {
@@ -245,7 +245,7 @@ where
     }
 
     async fn new_line(&mut self, line_buf_combined: &[u8]) {
-        self.rollback_buf.wrap_push(line_buf_combined, self.n_cols as usize);
+        self.rollback_buf.wrap_push(line_buf_combined, self.n_cols as usize).unwrap();
         self.hide_cursor();
         self.i_col = 0;
         self.advance_row();

@@ -54,7 +54,7 @@ impl Output for DummyOutput {
 pub struct Editor<'a, Output> {
     line_buf_whole: &'a mut [u8],
     history_buf: RoundBuffer<'a>,
-    index_history: usize,
+    offset_history: usize,
     output: Output,
     idx_cur: usize,
     idx_end: usize,
@@ -72,7 +72,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         Self {
             line_buf_whole,
             history_buf: RoundBuffer::new(history_buf),
-            index_history: RoundBuffer::IDX_NONE,
+            offset_history: RoundBuffer::OFFSET_NONE,
             output,
             idx_cur: 0,
             idx_end: 0,
@@ -153,7 +153,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             serkey::Key::End(attr) if attr.is_none() => { self.move_cursor_to_line_end().await; }
             _ => {}
         }
-        if !history_operation { self.index_history = RoundBuffer::IDX_NONE; }
+        if !history_operation { self.offset_history = RoundBuffer::OFFSET_NONE; }
         if quit_completion { self.idx_completion = Self::IDX_NONE; }
         event
     }
@@ -221,9 +221,9 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         let line_buf_stripped = &line_buf[idx_start..idx_end];
         if idx_start != idx_end {
             let mut skip_push = false;
-            let mut idx_item = RoundBuffer::IDX_NONE;
-            if self.history_buf.seek_item_backward(&mut idx_item) {
-                let (first, second) = self.history_buf.get_item(idx_item).unwrap();
+            let mut offset_seek = RoundBuffer::OFFSET_NONE;
+            if self.history_buf.seek_item_backward(&mut offset_seek) {
+                let (first, second) = self.history_buf.get_item(offset_seek).unwrap();
                 skip_push =
                     self.idx_end == first.len() + second.len() &&
                     line_buf_stripped[..first.len()].cmp(first) == core::cmp::Ordering::Equal &&
@@ -242,8 +242,8 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
 
     pub async fn recall_history_prev(&mut self) {
         let width = self.calc_width(0, self.idx_cur);
-        if self.history_buf.seek_item_backward(&mut self.index_history) {
-            let (first, second) = self.history_buf.get_item(self.index_history).unwrap();
+        if self.history_buf.seek_item_backward(&mut self.offset_history) {
+            let (first, second) = self.history_buf.get_item(self.offset_history).unwrap();
             let idx_end = first.len() + second.len();
             let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
             assert!(idx_end <= line_buf.len());
@@ -259,8 +259,8 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
 
     pub async fn recall_history_next(&mut self) {
         let width = self.calc_width(0, self.idx_cur);
-        if self.history_buf.seek_item_forward(&mut self.index_history) {
-            let (first, second) = self.history_buf.get_item(self.index_history).unwrap();
+        if self.history_buf.seek_item_forward(&mut self.offset_history) {
+            let (first, second) = self.history_buf.get_item(self.offset_history).unwrap();
             let idx_end = first.len() + second.len();
             let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
             assert!(idx_end <= line_buf.len());

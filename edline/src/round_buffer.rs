@@ -6,20 +6,20 @@ use crate::utf8_accumulator::Utf8Accumulator;
 //-----------------------------------------------------------------------------
 pub struct RoundBuffer<'a> {
     buf: &'a mut [u8],
-    idx_top: usize,
-    idx_bottom: usize,
-    idx_write: usize,
-    //idx_cursor: usize,
+    offset_top: usize,
+    offset_bottom: usize,
+    offset_write: usize,
     buf_full: bool,
     n_items: usize,
 }
 
+#[allow(dead_code)]
 impl<'a> RoundBuffer<'a> {
-    pub const IDX_NONE: usize = usize::MAX;
+    pub const OFFSET_NONE: usize = usize::MAX;
 
     pub fn new(buf: &'a mut [u8]) -> Self {
         buf.fill(0x00);
-        Self { buf, idx_top: 0, idx_bottom: 0, idx_write: 0, buf_full: false, n_items: 0 }
+        Self { buf, offset_top: 0, offset_bottom: 0, offset_write: 0, buf_full: false, n_items: 0 }
     }
 
     pub fn capacity(&self) -> usize { self.buf.len() }
@@ -28,24 +28,24 @@ impl<'a> RoundBuffer<'a> {
 
     pub fn buf(&self) -> &[u8] { self.buf }
 
-    pub fn idx_top(&self) -> usize { self.idx_top }
+    pub fn offset_top(&self) -> usize { self.offset_top }
 
-    pub fn idx_bottom(&self) -> usize { self.idx_bottom }
+    pub fn offset_bottom(&self) -> usize { self.offset_bottom }
 
-    pub fn idx_write(&self) -> usize { self.idx_write }
+    pub fn offset_write(&self) -> usize { self.offset_write }
 
     pub fn count(&self) -> usize { self.n_items }
 
     pub fn wrap_push(&mut self, src: &[u8], n_cols_wrap: usize) -> Result<(), ()> {
-        let mut idx_start = 0;
-        let mut idx_end = 0;
+        let mut offset_start = 0;
+        let mut offset_end = 0;
         let mut n_cols = 0;
         let mut utf8_acc = Utf8Accumulator::new();
-        while idx_end < src.len() {
-            if src[idx_end] == b'\n' {
-                self.push(&src[idx_start..idx_end])?;
-                idx_start = idx_end + 1;
-            } else if utf8_acc.push(src[idx_end]) {
+        while offset_end < src.len() {
+            if src[offset_end] == b'\n' {
+                self.push(&src[offset_start..offset_end])?;
+                offset_start = offset_end + 1;
+            } else if utf8_acc.push(src[offset_end]) {
                 let s = utf8_acc.get_result();
                 let len_char = s.len();
                 let n_cols_char = UnicodeWidthStr::width(s);
@@ -53,87 +53,87 @@ impl<'a> RoundBuffer<'a> {
                 if n_cols + n_cols_char < n_cols_wrap {
                     n_cols += n_cols_char;
                 } else if n_cols + n_cols_char == n_cols_wrap {
-                    self.push(&src[idx_start..=idx_end])?;
-                    idx_start = idx_end + 1;
+                    self.push(&src[offset_start..=offset_end])?;
+                    offset_start = offset_end + 1;
                     n_cols = 0;
                 } else {
-                    let idx_prev = idx_end + 1 - len_char;
-                    self.push(&src[idx_start..idx_prev])?;
-                    idx_start = idx_prev;
+                    let offset_prev = offset_end + 1 - len_char;
+                    self.push(&src[offset_start..offset_prev])?;
+                    offset_start = offset_prev;
                     n_cols = n_cols_char;
                 }
             }
-            idx_end += 1;
+            offset_end += 1;
         }
-        if idx_start < src.len() {
-            self.push(&src[idx_start..])?;
+        if offset_start < src.len() {
+            self.push(&src[offset_start..])?;
         }
         Ok(())
     }
 
     pub fn push(&mut self, src: &[u8]) -> Result<(), ()> {
         if src.len() + 1 > self.capacity() { return Err(()); }
-        let idx_write_end = self.idx_write + src.len() + 1;
-        if idx_write_end <= self.buf.len() {
+        let offset_write_end = self.offset_write + src.len() + 1;
+        if offset_write_end <= self.buf.len() {
             if self.buf_full {
-                while self.idx_write <= self.idx_top && self.idx_top < idx_write_end && self.n_items > 0 {
-                    let mut idx = self.idx_top;
+                while self.offset_write <= self.offset_top && self.offset_top < offset_write_end && self.n_items > 0 {
+                    let mut idx = self.offset_top;
                     while self.buf[idx] != 0x00 {
                         idx += 1;
                         if idx >= self.buf.len() { idx = 0; }
                     }
                     idx += 1;
                     if idx >= self.buf.len() { idx = 0; }
-                    self.idx_top = idx;
+                    self.offset_top = idx;
                     self.n_items -= 1;
                 }
             }
-            self.buf[self.idx_write..self.idx_write + src.len()].copy_from_slice(src);
-            self.buf[idx_write_end - 1] = 0x00;
-            self.idx_bottom = self.idx_write;
-            if self.n_items == 0 { self.idx_top = self.idx_write; }
-            self.idx_write = idx_write_end;
+            self.buf[self.offset_write..self.offset_write + src.len()].copy_from_slice(src);
+            self.buf[offset_write_end - 1] = 0x00;
+            self.offset_bottom = self.offset_write;
+            if self.n_items == 0 { self.offset_top = self.offset_write; }
+            self.offset_write = offset_write_end;
             self.n_items += 1;
         } else {
             self.buf_full = true;
-            let nbytes_copy = self.buf.len() - self.idx_write;
+            let nbytes_copy = self.buf.len() - self.offset_write;
             let nbytes_rest = src.len() - nbytes_copy;
-            let idx_write_end = nbytes_rest + 1;
-            while (self.idx_top < idx_write_end || self.idx_write <= self.idx_top) && self.n_items > 0 {
-                let mut idx = self.idx_top;
+            let offset_write_end = nbytes_rest + 1;
+            while (self.offset_top < offset_write_end || self.offset_write <= self.offset_top) && self.n_items > 0 {
+                let mut idx = self.offset_top;
                 while self.buf[idx] != 0x00 {
                     idx += 1;
                     if idx >= self.buf.len() { idx = 0; }
                 }
                 idx += 1;
                 if idx >= self.buf.len() { idx = 0; }
-                self.idx_top = idx;
+                self.offset_top = idx;
                 self.n_items -= 1;
             }
-            self.buf[self.idx_write..self.idx_write + nbytes_copy].copy_from_slice(&src[..nbytes_copy]);
+            self.buf[self.offset_write..self.offset_write + nbytes_copy].copy_from_slice(&src[..nbytes_copy]);
             self.buf[0..nbytes_rest].copy_from_slice(&src[nbytes_copy..]);
             self.buf[nbytes_rest] = 0x00;
-            self.idx_bottom = self.idx_write;
-            if self.n_items == 0 { self.idx_top = self.idx_write; }
-            self.idx_write = idx_write_end;
+            self.offset_bottom = self.offset_write;
+            if self.n_items == 0 { self.offset_top = self.offset_write; }
+            self.offset_write = offset_write_end;
             self.n_items += 1;
         }
-        if self.idx_write >= self.buf.len() { self.idx_write = 0; }
+        if self.offset_write >= self.buf.len() { self.offset_write = 0; }
         Ok(())
     }
 
-    pub fn seek_item_forward(&self, idx_item: &mut usize) -> bool {
-        if *idx_item == Self::IDX_NONE {
+    pub fn seek_item_forward(&self, offset_seek: &mut usize) -> bool {
+        if *offset_seek == Self::OFFSET_NONE {
             if self.is_empty() { return false; }
-            *idx_item = self.idx_top;
-        } else if *idx_item == self.idx_bottom {
+            *offset_seek = self.offset_top;
+        } else if *offset_seek == self.offset_bottom {
             return false;
         } else {
-            *idx_item = {
-                let mut idx = *idx_item;
+            *offset_seek = {
+                let mut idx = *offset_seek;
                 while self.buf[idx] != 0x00 {
                     idx = if idx + 1 < self.buf.len() { idx + 1 } else { 0 };
-                    assert!(idx != *idx_item, "Failed to find null terminator in buffer");
+                    assert!(idx != *offset_seek, "Failed to find null terminator in buffer");
                 }
                 if idx + 1 < self.buf.len() { idx + 1 } else { 0 }
             };
@@ -141,53 +141,46 @@ impl<'a> RoundBuffer<'a> {
         true
     }
 
-    pub fn seek_item_backward(&self, idx_item: &mut usize) -> bool {
-        self.seek_item_backward_n(idx_item, 1)
-    }
-
-    pub fn seek_item_backward_n(&self, idx_item: &mut usize, n: usize) -> bool {
-        if *idx_item == Self::IDX_NONE {
+    pub fn seek_item_backward(&self, offset_seek: &mut usize) -> bool {
+        if *offset_seek == Self::OFFSET_NONE {
             if self.is_empty() { return false; }
-            *idx_item = self.idx_bottom;
+            *offset_seek = self.offset_bottom;
+        } else if *offset_seek == self.offset_top {
+            return false;
         } else {
-            let mut idx_seek = *idx_item;
-            for _ in 0..n {
-                if idx_seek == self.idx_top { return false; }
-                idx_seek = {
-                    let mut idx = idx_seek;
+            *offset_seek = {
+                let mut idx = *offset_seek;
+                idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
+                let mut offset_start;
+                loop {
+                    offset_start = idx;
+                    if offset_start == self.offset_top { break; }
                     idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
-                    let mut idx_start;
-                    loop {
-                        idx_start = idx;
-                        if idx_start == self.idx_top { break; }
-                        idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
-                        if self.buf[idx] == 0x00 { break; }
-                        assert!(idx != idx_seek, "Failed to find null terminator in buffer");
-                    }
-                    idx_start
-                };
+                    if self.buf[idx] == 0x00 { break; }
+                    assert!(idx != *offset_seek, "Failed to find null terminator in buffer");
+                }
+                offset_start
             }
-            *idx_item = idx_seek;
         }
         true
     }
 
-    pub fn get_item(&self, idx_item: usize) -> Option<(&[u8], &[u8])> {
-        if idx_item == Self::IDX_NONE || self.is_empty() { return None; }
-        let idx_end = {
-            let mut idx = idx_item;
+    pub fn get_item(&self, offset_item: usize) -> Option<(&[u8], &[u8])> {
+        if offset_item == Self::OFFSET_NONE || self.is_empty() { return None; }
+        let offset_end = {
+            let mut idx = offset_item;
             while self.buf[idx] != 0x00 {
                 idx = if idx + 1 < self.buf.len() { idx + 1 } else { 0 };
-                assert!(idx != idx_item, "Failed to find null terminator in buffer");
+                assert!(idx != offset_item, "Failed to find null terminator in buffer");
             }
             idx
         };
-        if idx_end == 0 {
-            Some((&self.buf[idx_item..], &self.buf[0..0]))
-        } else if idx_end < idx_item {
-            Some((&self.buf[idx_item..], &self.buf[..idx_end]))
+        if offset_end == 0 {
+            Some((&self.buf[offset_item..], &self.buf[0..0]))
+        } else if offset_end < offset_item {
+            Some((&self.buf[offset_item..], &self.buf[..offset_end]))
         } else {
-            Some((&self.buf[idx_item..idx_end], &self.buf[0..0]))
+            Some((&self.buf[offset_item..offset_end], &self.buf[0..0]))
         }
     }
 }
