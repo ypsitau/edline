@@ -30,9 +30,29 @@ impl<'a> RoundBuffer<'a> {
 
     pub fn count(&self) -> usize { self.n_items }
 
+    pub fn wrap_push(&mut self, src: &[u8], _n_cols_wrap: usize) -> Result<(), ()> {
+        let mut idx_start = 0;
+        let mut idx_end = 0;
+        let mut n_cols = 0;
+        
+        loop {
+            if src[idx_end] == b'\n' {
+                self.push(&src[idx_start..idx_end])?;
+                idx_start = idx_end + 1;
+            } else {
+
+            }
+            idx_end += 1;
+            if idx_end >= src.len() { break; }
+        }
+        if idx_start < src.len() {
+            self.push(&src[idx_start..])?;
+        }
+        Ok(())
+    }
+
     pub fn push(&mut self, src: &[u8]) -> Result<(), ()> {
         if src.len() + 1 > self.capacity() { return Err(()); }
-        //self.idx_cursor = Self::IDX_NONE;
         let idx_write_end = self.idx_write + src.len() + 1;
         if idx_write_end <= self.buf.len() {
             if self.buf_full {

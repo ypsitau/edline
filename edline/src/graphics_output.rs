@@ -1,8 +1,9 @@
 use embedded_hal_async as hal_async;
 use embedded_graphics as eg;
 use embedded_graphics::prelude::*;
-use crate::round_buffer::RoundBuffer;
 use unicode_width::UnicodeWidthStr;
+use crate::round_buffer::RoundBuffer;
+use crate::utf8_accumulator::Utf8Accumulator;
 
 //-----------------------------------------------------------------------------
 // Config
@@ -118,10 +119,6 @@ where
 
     fn calc_point(&self, i_col: i32, i_row: i32) -> Point {
         Point::new(self.calc_x(i_col), self.calc_y(i_row))
-    }
-
-    fn push_rollback(rollback_buf: &mut RoundBuffer, buf: &[u8]) {
-        rollback_buf.push(buf).unwrap();
     }
 
     fn advance_row(&mut self) {
@@ -244,11 +241,11 @@ where
 
     async fn print(&mut self, s: &str) {
         self.write(s.as_bytes()).await;
-        Self::push_rollback(&mut self.rollback_buf, s.as_bytes());
+        self.rollback_buf.wrap_push(s.as_bytes(), self.n_cols as usize).unwrap();
     }
 
     async fn new_line(&mut self, line_buf_combined: &[u8]) {
-        Self::push_rollback(&mut self.rollback_buf, line_buf_combined);
+        self.rollback_buf.wrap_push(line_buf_combined, self.n_cols as usize);
         self.hide_cursor();
         self.i_col = 0;
         self.advance_row();
@@ -285,55 +282,5 @@ where
             self.draw_cursor(self.cursor_blinking_toggle);
             self.refresh();
         }
-    }
-}
-
-//-----------------------------------------------------------------------------
-// Utf8Accumulator
-//-----------------------------------------------------------------------------
-struct Utf8Accumulator {
-    buf: [u8; 8],
-    idx: u8,
-    idx_end: u8,
-}
-
-impl Utf8Accumulator {
-    fn new() -> Self {
-        Self { buf: [0; 8], idx: 0, idx_end: 0 }
-    }
-
-    fn reset(&mut self) {
-        self.idx = 0;
-        self.idx_end = 0;
-    }
-
-    fn push(&mut self, byte: u8) -> bool {
-        if self.idx == 0 {
-            self.buf[0] = byte;
-            self.idx = 1;
-            if byte & 0x80 == 0x00 {
-                self.idx_end = 1;
-                return true;
-            } else if byte & 0xe0 == 0xc0 {
-                self.idx_end = 2;
-            } else if byte & 0xf0 == 0xe0 {
-                self.idx_end = 3;
-            } else if byte & 0xf8 == 0xf0 {
-                self.idx_end = 4;
-            } else {
-                self.reset();
-            };
-        } else if byte & 0xc0 == 0x80 {
-            self.buf[self.idx as usize] = byte;
-            self.idx += 1;
-            return self.idx == self.idx_end;
-        } else {
-            self.reset();
-        }
-        false
-    }
-
-    fn get_result(&self) -> &str {
-        unsafe { core::str::from_utf8_unchecked(&self.buf[..self.idx_end as usize]) }
     }
 }
