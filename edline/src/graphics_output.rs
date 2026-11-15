@@ -8,7 +8,7 @@ use crate::utf8_accumulator::Utf8Accumulator;
 //-----------------------------------------------------------------------------
 // Config
 //-----------------------------------------------------------------------------
-pub struct Config<ColorType = eg::pixelcolor::Rgb565> {
+pub struct Config<ColorType> {
     pub cursor_blinking_interval: u32,
     pub font: &'static eg::mono_font::MonoFont<'static>,
     pub text_color: ColorType,
