@@ -16,13 +16,13 @@ pub struct Config<ColorType> {
     pub ht_cursor: u32,
 }
 
-impl<ColorType: eg::pixelcolor::RgbColor> Config<ColorType> {
+impl<ColorType: From<eg::pixelcolor::Rgb888>> Config<ColorType> {
     pub fn default() -> Self {
         Self {
             cursor_blinking_interval: 500,
             font: &eg::mono_font::ascii::FONT_6X10,
-            text_color: ColorType::WHITE,
-            background_color: ColorType::BLACK,
+            text_color: ColorType::from(eg::pixelcolor::Rgb888::WHITE),
+            background_color: ColorType::from(eg::pixelcolor::Rgb888::BLACK),
             ht_cursor: 2,
         }
     }
@@ -128,6 +128,10 @@ where
 
     fn calc_y(&self, i_row: i32) -> i32 { i_row * self.y_advance }
 
+    fn calc_point(&self, i_col: i32, i_row: i32) -> Point {
+        Point::new(self.calc_x(i_col), self.calc_y(i_row))
+    }
+
     fn advance_row(&mut self) {
         if self.i_row + 1 < self.n_rows {
             self.i_row += 1;
@@ -141,7 +145,6 @@ where
         eg::primitives::Rectangle::new(Point::new(0, y), Size::new(width as u32, self.y_advance as u32))
             .into_styled(eg::primitives::PrimitiveStyle::with_fill(self.config.background_color))
             .draw(&mut self.target).ok();
-
         i_row -= 1;
         while i_row >= 0 && self.rollback_buf.seek_item_backward(&mut offset_seek) {
             let mut i_col = 0;
@@ -161,9 +164,8 @@ where
                 }
             }
             if i_col < self.n_cols {
-                let x = self.calc_x(i_col);
-                let y = self.calc_y(i_row);
-                eg::primitives::Rectangle::new(Point::new(x, y), Size::new((width - x) as u32, self.y_advance as u32))
+                let pt = self.calc_point(i_col, i_row);
+                eg::primitives::Rectangle::new(pt, Size::new((width - pt.x) as u32, self.y_advance as u32))
                     .into_styled(eg::primitives::PrimitiveStyle::with_fill(self.config.background_color))
                     .draw(&mut self.target).ok();
             }
@@ -172,12 +174,11 @@ where
     }
 }
 
-impl<DrawTarget, DelayNs, FnRefresh, ColorType> GraphicsOutput<'_, DrawTarget, DelayNs, FnRefresh>
+impl<DrawTarget, DelayNs, FnRefresh> GraphicsOutput<'_, DrawTarget, DelayNs, FnRefresh>
 where
-    DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
+    DrawTarget: eg::draw_target::DrawTarget,
     FnRefresh: FnMut(&mut DrawTarget),
     DelayNs: hal_async::delay::DelayNs,
-    ColorType: eg::pixelcolor::RgbColor,
 {
     fn draw_cursor(&mut self, visible: bool) {
         let color = if visible { self.config.text_color } else { self.config.background_color };
@@ -204,13 +205,12 @@ where
     }
 }
 
-impl<DrawTarget, DelayNs, FnRefresh, ColorType> crate::editor::Output
+impl<DrawTarget, DelayNs, FnRefresh> crate::editor::Output
     for GraphicsOutput<'_, DrawTarget, DelayNs, FnRefresh>
 where
-    DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
+    DrawTarget: eg::draw_target::DrawTarget,
     DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
-    ColorType: eg::pixelcolor::RgbColor,
 {
     type Error = ();
 
@@ -239,9 +239,8 @@ where
                     self.i_col = 0;
                     self.i_row += 1;
                 }
-                let x = self.calc_x(self.i_col);
-                let y = self.calc_y(self.i_row);
-                eg::text::Text::with_text_style(s, Point::new(x, y), self.character_style, self.text_style)
+                let pt = self.calc_point(self.i_col, self.i_row);
+                eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
                     .draw(&mut self.target).ok();
                 self.i_col = i_col_next;
             }
@@ -276,12 +275,11 @@ where
     }
 
     async fn delete_to_line_end(&mut self) {
-        let x = self.calc_x(self.i_col);
-        let y = self.calc_y(self.i_row);
+        let pt = self.calc_point(self.i_col, self.i_row);
         let width = self.target.bounding_box().size.width as i32;
-        if x >= width { return; }
+        if pt.x >= width { return; }
         self.hide_cursor();
-        eg::primitives::Rectangle::new(Point::new(x, y), Size::new((width - x) as u32, self.y_advance as u32))
+        eg::primitives::Rectangle::new(pt, Size::new((width - pt.x) as u32, self.y_advance as u32))
             .into_styled(eg::primitives::PrimitiveStyle::with_fill(self.config.background_color))
             .draw(&mut self.target).ok();
         self.show_cursor();

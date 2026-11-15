@@ -426,7 +426,7 @@ where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
-    ColorType: eg::pixelcolor::RgbColor,
+    ColorType: From<eg::pixelcolor::Rgb888>,
 {
     pub fn with_graphics_output(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
         rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
@@ -458,7 +458,7 @@ pub async fn simple_task_graphics<DrawTarget, ColorType, KeyReader, DelayNs, FnR
     (target: DrawTarget, key_reader: KeyReader, enable_break: bool, delay: DelayNs, fn_refresh: FnRefresh)
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
-    ColorType: eg::pixelcolor::RgbColor + From<eg::pixelcolor::Rgb888>,
+    ColorType: From<eg::pixelcolor::Rgb888>,
     KeyReader: keycode::ReadKey,
     DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
@@ -483,8 +483,8 @@ where
     };
     let config = GraphicsConfig::<ColorType>::default()
         .font(&eg::mono_font::ascii::FONT_10X20)
-        .text_color(ColorType::WHITE)
-        .background_color(ColorType::from(eg::pixelcolor::Rgb888::new(0, 0, 32)))
+        .text_color(ColorType::from(eg::pixelcolor::Rgb888::new(255, 255, 255)))
+        .background_color(ColorType::from(eg::pixelcolor::Rgb888::new(0, 0, 128)))
         .ht_cursor(2);
     let editor = Editor::with_graphics_output(line_buf, history_buf, rollback_buf, work_buf, target, config, delay, fn_refresh);
     simple_task_common(editor, key_reader, enable_break).await;
