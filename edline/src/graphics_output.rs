@@ -13,6 +13,7 @@ pub struct Config<ColorType = eg::pixelcolor::Rgb565> {
     pub font: &'static eg::mono_font::MonoFont<'static>,
     pub text_color: ColorType,
     pub background_color: ColorType,
+    pub ht_cursor: u32,
 }
 
 impl<ColorType: eg::pixelcolor::RgbColor> Config<ColorType> {
@@ -22,22 +23,32 @@ impl<ColorType: eg::pixelcolor::RgbColor> Config<ColorType> {
             font: &eg::mono_font::ascii::FONT_6X10,
             text_color: ColorType::WHITE,
             background_color: ColorType::BLACK,
+            ht_cursor: 2,
         }
     }
+
     pub fn cursor_blinking_interval(mut self, cursor_blinking_interval: u32) -> Self {
         self.cursor_blinking_interval = cursor_blinking_interval;
         self
     }
+
     pub fn font(mut self, font: &'static eg::mono_font::MonoFont<'static>) -> Self {
         self.font = font;
         self
     }
+
     pub fn text_color(mut self, text_color: ColorType) -> Self {
         self.text_color = text_color;
         self
     }
+
     pub fn background_color(mut self, background_color: ColorType) -> Self {
         self.background_color = background_color;
+        self
+    }
+
+    pub fn ht_cursor(mut self, ht_cursor: u32) -> Self {
+        self.ht_cursor = ht_cursor;
         self
     }
 }
@@ -82,7 +93,7 @@ where
     ) -> Self {
         let font = config.font;
         let x_advance = font.character_size.width as i32;
-        let y_advance = font.character_size.height as i32 + 2;
+        let y_advance = font.character_size.height as i32 + config.ht_cursor as i32;
         let size = target.bounding_box().size;
         let n_cols = size.width as i32 / x_advance;
         let n_rows = size.height as i32 / y_advance;
@@ -117,10 +128,6 @@ where
 
     fn calc_y(&self, i_row: i32) -> i32 { i_row * self.y_advance }
 
-    fn calc_point(&self, i_col: i32, i_row: i32) -> Point {
-        Point::new(self.calc_x(i_col), self.calc_y(i_row))
-    }
-
     fn advance_row(&mut self) {
         if self.i_row + 1 < self.n_rows {
             self.i_row += 1;
@@ -130,8 +137,8 @@ where
         let mut offset_seek = RoundBuffer::OFFSET_NONE;
         let mut utf8_acc = Utf8Accumulator::new();
         let mut i_row = self.n_rows - 1;
-        let pt = self.calc_point(0, i_row);
-        eg::primitives::Rectangle::new(pt, Size::new((width - pt.x) as u32, self.y_advance as u32))
+        let y = self.calc_y(i_row);
+        eg::primitives::Rectangle::new(Point::new(0, y), Size::new(width as u32, self.y_advance as u32))
             .into_styled(eg::primitives::PrimitiveStyle::with_fill(self.config.background_color))
             .draw(&mut self.target).ok();
 
@@ -142,19 +149,21 @@ where
             let (first, second) = self.rollback_buf.get_item(offset_seek).unwrap();
             //println!("i_row: {} {}{}", i_row,
             //    str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
+            let y = self.calc_y(i_row);
             for byte in first.iter().chain(second.iter()) {
                 if utf8_acc.push(*byte) {
                     let s = utf8_acc.get_result();
-                    let pt = self.calc_point(i_col, i_row);
-                    eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
+                    let x = self.calc_x(i_col);
+                    eg::text::Text::with_text_style(s, Point::new(x, y), self.character_style, self.text_style)
                         .draw(&mut self.target).ok();
                     i_col += UnicodeWidthStr::width(s) as i32;
                     utf8_acc.reset();
                 }
             }
             if i_col < self.n_cols {
-                let pt = self.calc_point(i_col, i_row);
-                eg::primitives::Rectangle::new(pt, Size::new((width - pt.x) as u32, self.y_advance as u32))
+                let x = self.calc_x(i_col);
+                let y = self.calc_y(i_row);
+                eg::primitives::Rectangle::new(Point::new(x, y), Size::new((width - x) as u32, self.y_advance as u32))
                     .into_styled(eg::primitives::PrimitiveStyle::with_fill(self.config.background_color))
                     .draw(&mut self.target).ok();
             }
@@ -172,8 +181,9 @@ where
 {
     fn draw_cursor(&mut self, visible: bool) {
         let color = if visible { self.config.text_color } else { self.config.background_color };
-        let position = self.calc_point(self.i_col, self.i_row) + Point::new(0, self.config.font.character_size.height as i32);
-        eg::primitives::Rectangle::new(position, Size::new(self.config.font.character_size.width, 2))
+        let x = self.calc_x(self.i_col);
+        let y = self.calc_y(self.i_row) + self.config.font.character_size.height as i32;
+        eg::primitives::Rectangle::new(Point::new(x, y), Size::new(self.config.font.character_size.width, self.config.ht_cursor))
             .into_styled(eg::primitives::PrimitiveStyle::with_fill(color))
             .draw(&mut self.target).unwrap_or_else(|_| panic!("failed to draw cursor"));
     }
@@ -229,8 +239,9 @@ where
                     self.i_col = 0;
                     self.i_row += 1;
                 }
-                let pt = self.calc_point(self.i_col, self.i_row);
-                eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
+                let x = self.calc_x(self.i_col);
+                let y = self.calc_y(self.i_row);
+                eg::text::Text::with_text_style(s, Point::new(x, y), self.character_style, self.text_style)
                     .draw(&mut self.target).ok();
                 self.i_col = i_col_next;
             }
@@ -265,11 +276,12 @@ where
     }
 
     async fn delete_to_line_end(&mut self) {
-        let pt = self.calc_point(self.i_col, self.i_row);
+        let x = self.calc_x(self.i_col);
+        let y = self.calc_y(self.i_row);
         let width = self.target.bounding_box().size.width as i32;
-        if pt.x >= width { return; }
+        if x >= width { return; }
         self.hide_cursor();
-        eg::primitives::Rectangle::new(pt, Size::new((width - pt.x) as u32, self.y_advance as u32))
+        eg::primitives::Rectangle::new(Point::new(x, y), Size::new((width - x) as u32, self.y_advance as u32))
             .into_styled(eg::primitives::PrimitiveStyle::with_fill(self.config.background_color))
             .draw(&mut self.target).ok();
         self.show_cursor();
