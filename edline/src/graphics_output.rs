@@ -293,4 +293,12 @@ where
             self.refresh();
         }
     }
+
+    async fn query_text_area_size(&mut self) {
+        // nothing to do        
+    }
+
+    async fn update_text_area_size(&mut self, _n_cols: usize, _n_rows: usize) {
+        // Text area size depends only on the device.      
+    }
 }

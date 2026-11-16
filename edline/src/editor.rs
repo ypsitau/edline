@@ -35,6 +35,8 @@ pub trait Output {
     fn blink_cursor(&mut self) -> impl Future<Output = ()> {
         core::future::pending()
     }
+    fn query_text_area_size(&mut self) -> impl Future<Output = ()>;
+    fn update_text_area_size(&mut self, n_cols: usize, n_rows: usize) -> impl Future<Output = ()>;
 }
 
 pub struct DummyOutput;
@@ -49,6 +51,9 @@ impl Output for DummyOutput {
     async fn move_cursor_left_n(&mut self, _n: usize) {}
     async fn move_cursor_right_n(&mut self, _n: usize) {}
     async fn delete_to_line_end(&mut self) {}
+    async fn blink_cursor(&mut self) {}
+    async fn query_text_area_size(&mut self) -> () {}
+    async fn update_text_area_size(&mut self, _n_cols: usize, _n_rows: usize) {}
 }
 
 pub struct Editor<'a, Output> {
@@ -100,6 +105,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         self.range_result = (0, 0);
         self.first_of_line = true;
         self.output.init().await;
+        self.output.query_text_area_size().await;
     }
 
     pub async fn process_key(&mut self, key: serkey::Key) -> Event {
@@ -124,6 +130,9 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
                 self.recall_history_next().await; history_operation = true; }
             serkey::Key::CookedCtrl(serkey::Ctrl::P) => {
                 self.recall_history_prev().await; history_operation = true; }
+            serkey::Key::TextAreaSizeReport(n_cols, n_rows) => {
+                self.output.update_text_area_size(n_cols as usize, n_rows as usize).await;
+            }
             serkey::Key::A(attr) if attr.is_ctrl() => { self.move_cursor_to_line_start().await; }
             serkey::Key::B(attr) if attr.is_ctrl() => { self.move_cursor_left().await; }
             serkey::Key::D(attr) if attr.is_ctrl() => { self.delete_char().await; }

@@ -1,6 +1,8 @@
 use heapless::String;
 use core::fmt::Write as _;
 use embedded_io_async as io_async;
+use unicode_width::UnicodeWidthStr;
+use crate::utf8_accumulator::Utf8Accumulator;
 
 pub struct Config {
 }
@@ -13,12 +15,16 @@ impl Config {
 
 pub struct ConsoleOutput<Writer> {
     writer: Writer,
+    n_cols: usize,
+    n_rows: usize,
+    i_col: usize,
     _config: Config,
+    utf8_acc: Utf8Accumulator,
 }
 
 impl<Writer: io_async::Write> ConsoleOutput<Writer> {
     pub fn new(writer: Writer, config: Config) -> Self {
-        Self { writer, _config: config }
+        Self { writer, n_cols: 80, n_rows: 25, i_col: 0, _config: config, utf8_acc: Utf8Accumulator::new() }
     }
 }
 
@@ -30,6 +36,12 @@ impl<Writer: io_async::Write> crate::editor::Output for ConsoleOutput<Writer> {
     async fn write(&mut self, data: &[u8]) {
         self.writer.write_all(data).await.unwrap();
         self.writer.flush().await.unwrap();
+        for byte in data {
+            if self.utf8_acc.push(*byte) {
+                let s = self.utf8_acc.get_result();
+                self.i_col += UnicodeWidthStr::width(s);
+            }
+        }
     }
 
     async fn print(&mut self, s: &str) {
@@ -39,6 +51,8 @@ impl<Writer: io_async::Write> crate::editor::Output for ConsoleOutput<Writer> {
     async fn new_line(&mut self, _line_buf_combined: &[u8]) {
         self.writer.write_all(b"\r\n").await.unwrap();
         self.writer.flush().await.unwrap();
+        self.i_col = 0;
+        self.utf8_acc.reset();
     }
 
     async fn move_cursor_left_n(&mut self, n: usize) {
@@ -62,5 +76,16 @@ impl<Writer: io_async::Write> crate::editor::Output for ConsoleOutput<Writer> {
     async fn delete_to_line_end(&mut self) {
         self.writer.write_all(b"\x1b[K").await.unwrap();
         self.writer.flush().await.unwrap();
+    }
+
+    async fn query_text_area_size(&mut self) {
+        self.writer.write_all(b"\x1b[18t").await.unwrap();
+        self.writer.flush().await.unwrap();
+    }
+
+    async fn update_text_area_size(&mut self, n_cols: usize, n_rows: usize) {
+        //println!("Updating text area size: {} cols, {} rows", n_cols, n_rows);
+        self.n_cols = n_cols;
+        self.n_rows = n_rows;
     }
 }
