@@ -2,7 +2,7 @@ use heapless::String;
 use core::fmt::Write as _;
 use embedded_io_async as io_async;
 use unicode_width::UnicodeWidthStr;
-use heapless::Vec;
+use crate::char_attr::CharAttr;
 use crate::utf8_accumulator::Utf8Accumulator;
 
 pub struct Config {
@@ -18,9 +18,8 @@ pub struct ConsoleOutput<Writer> {
     writer: Writer,
     _config: Config,
     utf8_acc: Utf8Accumulator,
-    attr: Vec<u8, 4>,
-    attr_prev: Vec<u8, 4>,
-    nbytes_attr: usize,
+    char_attr: CharAttr,
+    char_attr_prev: CharAttr,
     n_cols: usize,
     n_rows: usize,
     pos: usize,
@@ -32,9 +31,8 @@ impl<Writer: io_async::Write> ConsoleOutput<Writer> {
             writer,
             _config: config,
             utf8_acc: Utf8Accumulator::new(),
-            attr: Vec::new(),
-            attr_prev: Vec::new(),
-            nbytes_attr: 0,
+            char_attr: CharAttr::new(),
+            char_attr_prev: CharAttr::new(),
             n_cols: 80,
             n_rows: 25,
             pos: 0
@@ -45,14 +43,14 @@ impl<Writer: io_async::Write> ConsoleOutput<Writer> {
 impl<Writer: io_async::Write> crate::editor::Output for ConsoleOutput<Writer> {
     type Error = Writer::Error;
 
-    async fn init(&mut self, _nbytes_attr: usize) {}
+    async fn init(&mut self) {}
     
     async fn write(&mut self, data: &[u8]) {
         for byte in data {
-            if self.attr.len() < self.nbytes_attr {
-                self.attr.push(*byte).unwrap();
+            if !self.char_attr.is_complete() {
+                self.char_attr.push(*byte);
             } else if self.utf8_acc.push(*byte) {
-                if self.attr != self.attr_prev {
+                if self.char_attr != self.char_attr_prev {
                     // Apply attribute changes here if needed
                 }
                 let s = self.utf8_acc.get_result();
@@ -64,8 +62,8 @@ impl<Writer: io_async::Write> crate::editor::Output for ConsoleOutput<Writer> {
                     self.pos += UnicodeWidthStr::width(s);
                 }
                 self.utf8_acc.reset();
-                self.attr_prev.clone_from(&self.attr);
-                self.attr.clear();
+                self.char_attr_prev.clone_from(&self.char_attr);
+                self.char_attr.clear();
             }
         }
         self.writer.flush().await.unwrap();

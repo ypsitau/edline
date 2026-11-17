@@ -2,7 +2,7 @@ use embedded_hal_async as hal_async;
 use embedded_graphics as eg;
 use embedded_graphics::prelude::*;
 use unicode_width::UnicodeWidthStr;
-use heapless::Vec;
+use crate::char_attr::CharAttr;
 use crate::round_buffer::RoundBuffer;
 use crate::utf8_accumulator::Utf8Accumulator;
 
@@ -68,9 +68,8 @@ pub struct GraphicsOutput<'a, DrawTarget: eg::draw_target::DrawTarget, DelayNs, 
     delay: DelayNs,
     fn_refresh: FnRefresh,
     utf8_acc: Utf8Accumulator,
-    attr: Vec<u8, 4>,
-    attr_prev: Vec<u8, 4>,
-    nbytes_attr: usize,
+    char_attr: CharAttr,
+    char_attr_prev: CharAttr,
     x_advance: i32,
     y_advance: i32,
     i_col: i32,
@@ -115,9 +114,8 @@ where
             delay,
             fn_refresh,
             utf8_acc: Utf8Accumulator::new(),
-            attr: Vec::new(),
-            attr_prev: Vec::new(),
-            nbytes_attr: 0,
+            char_attr: CharAttr::new(),
+            char_attr_prev: CharAttr::new(),
             i_col: 0,
             i_row: 0,
             x_advance, y_advance,
@@ -147,8 +145,8 @@ where
         let width = self.target.bounding_box().size.width as i32;
         let mut offset_seek = RoundBuffer::OFFSET_NONE;
         let mut utf8_acc = Utf8Accumulator::new();
-        let mut attr = Vec::<u8, 4>::new();
-        let mut attr_prev = Vec::<u8, 4>::new();
+        let mut char_attr = CharAttr::new();
+        let mut char_attr_prev = CharAttr::new();
         let mut i_row = self.n_rows - 1;
         let y = self.calc_y(i_row);
         eg::primitives::Rectangle::new(Point::new(0, y), Size::new(width as u32, self.y_advance as u32))
@@ -163,10 +161,10 @@ where
             //    str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
             let y = self.calc_y(i_row);
             for byte in first.iter().chain(second.iter()) {
-                if attr.len() < self.nbytes_attr {
-                    attr.push(*byte).unwrap();
+                if !char_attr.is_complete() {
+                    char_attr.push(*byte);
                 } else if utf8_acc.push(*byte) {
-                    if attr != attr_prev {
+                    if char_attr != char_attr_prev {
                         // Apply attribute changes here if needed
                     }
                     let s = utf8_acc.get_result();
@@ -175,8 +173,8 @@ where
                         .draw(&mut self.target).ok();
                     i_col += UnicodeWidthStr::width(s) as i32;
                     utf8_acc.reset();
-                    attr_prev.clone_from(&attr);
-                    attr.clear();
+                    char_attr_prev.clone_from(&char_attr);
+                    char_attr.clear();
                 }
             }
             if i_col < self.n_cols {
@@ -230,9 +228,8 @@ where
 {
     type Error = ();
 
-    async fn init(&mut self, nbytes_attr: usize) {
+    async fn init(&mut self) {
         self.utf8_acc.reset();
-        self.nbytes_attr = nbytes_attr;
         self.i_col = 0;
         self.i_row = 0;
         self.cursor_visible = false;
@@ -243,10 +240,10 @@ where
     async fn write(&mut self, data: &[u8]) {
         self.hide_cursor();
         for byte in data {
-            if self.attr.len() < self.nbytes_attr {
-                self.attr.push(*byte).unwrap();
+            if !self.char_attr.is_complete() {
+                self.char_attr.push(*byte);
             } else if self.utf8_acc.push(*byte) {
-                if self.attr != self.attr_prev {
+                if self.char_attr != self.char_attr_prev {
                     // Apply attribute changes here if needed
                 }
                 let s = self.utf8_acc.get_result();
@@ -265,8 +262,8 @@ where
                     self.i_col = i_col_next;
                 }
                 self.utf8_acc.reset();
-                self.attr_prev.clone_from(&self.attr);
-                self.attr.clear();
+                self.char_attr_prev.clone_from(&self.char_attr);
+                self.char_attr.clear();
             }
         }
         self.show_cursor();

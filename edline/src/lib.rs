@@ -44,6 +44,7 @@
 #![no_std]
 
 mod editor;
+mod char_attr;
 mod round_buffer;
 mod console_output;
 mod graphics_output;
