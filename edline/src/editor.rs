@@ -10,8 +10,9 @@ use embedded_graphics as eg;
 use embedded_hal_async as hal_async;
 use embedded_keycode as keycode;
 use unicode_width::UnicodeWidthStr;
-pub use crate::console_output::Config as ConsoleConfig;
-pub use crate::graphics_output::Config as GraphicsConfig;
+use crate::utf8_accumulator::Utf8Accumulator;
+use crate::console_output::Config as ConsoleConfig;
+use crate::graphics_output::Config as GraphicsConfig;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
@@ -25,7 +26,7 @@ pub enum Event {
 pub trait Output {
     type Error;
 
-    fn init(&mut self) -> impl Future<Output = ()>;
+    fn init(&mut self, nbytes_attr: usize) -> impl Future<Output = ()>;
     fn write(&mut self, data: &[u8]) -> impl Future<Output = ()>;
     fn print(&mut self, s: &str) -> impl Future<Output = ()>;
     fn new_line(&mut self, line_buf_combined: &[u8]) -> impl Future<Output = ()>; 
@@ -44,7 +45,7 @@ pub struct DummyOutput;
 impl Output for DummyOutput {
     type Error = ();
 
-    async fn init(&mut self) {}
+    async fn init(&mut self, _nbytes_attr: usize) {}
     async fn write(&mut self, _data: &[u8]) {}
     async fn print(&mut self, _s: &str) {}
     async fn new_line(&mut self, _line_buf_combined: &[u8]) {}
@@ -67,6 +68,7 @@ pub struct Editor<'a, Output> {
     range_result: (usize, usize),
     first_of_line: bool,
     nbytes_prompt: usize,
+    nbytes_attr: usize,
 }
 
 impl<'a, OutputT: Output> Editor<'a, OutputT> {
@@ -85,17 +87,28 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             range_result: (0, 0),
             first_of_line: true,
             nbytes_prompt: 0,
+            nbytes_attr: 0,
         }
     }
 
     pub fn set_prompt(&mut self, prompt: &str) {
-        self.line_buf_whole.copy_within(self.nbytes_prompt..self.nbytes_prompt + self.idx_end, prompt.len());
+        let nchars_prompt_new = prompt.chars().count();
+        let nbytes_prompt_new = prompt.len() + nchars_prompt_new * self.nbytes_attr;
+        if nbytes_prompt_new + self.idx_end > self.line_buf_whole.len() { return; }
+        self.line_buf_whole.copy_within(self.nbytes_prompt..self.nbytes_prompt + self.idx_end, nbytes_prompt_new);
+        let mut utf8_acc = Utf8Accumulator::new();
+        let mut ibyte_dst = 0;
+        for byte in prompt.as_bytes() {
+            if utf8_acc.push(*byte) {
+                ibyte_dst += self.nbytes_attr;
+                let s = utf8_acc.get_result();
+                self.line_buf_whole[ibyte_dst..ibyte_dst + s.len()].copy_from_slice(s.as_bytes());
+                ibyte_dst += s.len();
+                utf8_acc.reset();
+            }
+        }
         self.line_buf_whole[..prompt.len()].copy_from_slice(prompt.as_bytes());
         self.nbytes_prompt = prompt.len();
-    }
-
-    pub fn prompt(&self) -> &str {
-        core::str::from_utf8(&self.line_buf_whole[..self.nbytes_prompt]).unwrap_or("")
     }
 
     pub async fn init(&mut self) {
@@ -104,7 +117,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         self.idx_completion = Self::IDX_NONE;
         self.range_result = (0, 0);
         self.first_of_line = true;
-        self.output.init().await;
+        self.output.init(self.nbytes_attr).await;
         self.output.query_text_area_size().await;
     }
 
@@ -348,21 +361,22 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
 
     pub async fn move_cursor_left(&mut self) -> bool {
         if self.idx_cur == 0 { return false; }
-        let mut idx_next = self.idx_cur - 1;
+        let mut idx_prev = self.idx_cur - 1;
         let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
-        while idx_next > 0 && line_buf[idx_next] & 0xC0 == 0x80 {
-            idx_next -= 1;
+        while idx_prev > 0 && line_buf[idx_prev] & 0xc0 == 0x80 {
+            idx_prev -= 1;
         }
-        self.output.move_cursor_left_n(self.calc_width(idx_next, self.idx_cur)).await;
-        self.idx_cur = idx_next;
+        idx_prev -= self.nbytes_attr;
+        self.output.move_cursor_left_n(self.calc_width(idx_prev, self.idx_cur)).await;
+        self.idx_cur = idx_prev;
         true
     }
 
     pub async fn move_cursor_right(&mut self) -> bool {
         if self.idx_cur >= self.idx_end { return false; }
-        let mut idx_next = self.idx_cur + 1;
+        let mut idx_next = self.idx_cur + self.nbytes_attr + 1;
         let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
-        while idx_next < self.idx_end && line_buf[idx_next] & 0xC0 == 0x80 {
+        while idx_next < self.idx_end && line_buf[idx_next] & 0xc0 == 0x80 {
             idx_next += 1;
         }
         self.output.move_cursor_right_n(self.calc_width(self.idx_cur, idx_next)).await;
@@ -374,24 +388,20 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         let mut buf_enc = [0; 4];
         let bytes_insert = c.encode_utf8(&mut buf_enc).as_bytes();
         let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
-        if self.idx_end + bytes_insert.len() > line_buf.len() {
-            return 0;
-        }
+        if self.idx_end + self.nbytes_attr + bytes_insert.len() > line_buf.len() { return 0; }
         if idx < self.idx_end {
             line_buf.copy_within(idx..self.idx_end, idx + bytes_insert.len());
         }
-        line_buf[idx..idx + bytes_insert.len()].copy_from_slice(bytes_insert);
-        self.idx_end += bytes_insert.len();
+        line_buf[idx + self.nbytes_attr..idx + self.nbytes_attr + bytes_insert.len()].copy_from_slice(bytes_insert);
+        self.idx_end += self.nbytes_attr + bytes_insert.len();
         bytes_insert.len()
     }
 
     pub fn delete_char_from_buf(&mut self, idx: usize) -> usize {
-        if idx >= self.idx_end {
-            return 0;
-        }
-        let mut nbytes_delete = 1;
+        if idx >= self.idx_end { return 0; }
+        let mut nbytes_delete = self.nbytes_attr + 1;
         let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
-        while idx + nbytes_delete < self.idx_end && line_buf[idx + nbytes_delete] & 0xC0 == 0x80 {
+        while idx + nbytes_delete < self.idx_end && line_buf[idx + nbytes_delete] & 0xc0 == 0x80 {
             nbytes_delete += 1;
         }
         line_buf.copy_within(idx + nbytes_delete..self.idx_end, idx);
@@ -401,9 +411,20 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
 
     pub fn calc_width(&self, idx_start: usize, idx_end: usize) -> usize {
         let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
-        let text = core::str::from_utf8(&line_buf[idx_start..idx_end])
-            .expect("line buffer contains invalid UTF-8");
-        UnicodeWidthStr::width(text)
+        let mut utf8_acc = Utf8Accumulator::new();
+        let mut ibyte_attr = 0;
+        let mut width = 0;
+        for byte in &line_buf[idx_start..idx_end] {
+            if ibyte_attr < self.nbytes_attr {
+                ibyte_attr += 1;
+            } else if utf8_acc.push(*byte) {
+                let s = utf8_acc.get_result();
+                width += UnicodeWidthStr::width(s);
+                utf8_acc.reset();
+                ibyte_attr = 0;
+            }
+        }
+        width
     }
 
     fn strip(buf: &[u8]) -> (usize, usize) {
