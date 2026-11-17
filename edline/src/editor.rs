@@ -87,7 +87,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             range_result: (0, 0),
             first_of_line: true,
             nbytes_prompt: 0,
-            nbytes_attr: 4,
+            nbytes_attr: 1,
         }
     }
 
@@ -312,10 +312,10 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     }
 
     pub async fn insert_char(&mut self, c: char) {
-        let nbytes = self.insert_char_to_buf(self.idx_cur, c);
-        if nbytes == 0 { return; }
+        let nbytes_inserted = self.insert_char_to_buf(self.idx_cur, c);
+        if nbytes_inserted == 0 { return; }
         let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
-        let idx_next = self.idx_cur + nbytes;
+        let idx_next = self.idx_cur + nbytes_inserted;
         if self.idx_end < idx_next { self.idx_end = idx_next; }
         self.output.write(&line_buf[self.idx_cur..self.idx_end]).await;
         if idx_next < self.idx_end {
@@ -394,7 +394,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         }
         line_buf[idx + self.nbytes_attr..idx + self.nbytes_attr + bytes_insert.len()].copy_from_slice(bytes_insert);
         self.idx_end += self.nbytes_attr + bytes_insert.len();
-        bytes_insert.len()
+        self.nbytes_attr + bytes_insert.len()
     }
 
     pub fn delete_char_from_buf(&mut self, idx: usize) -> usize {
