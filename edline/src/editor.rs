@@ -302,7 +302,9 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         if idx_end > line_buf.len() { return; }
         let width = self.calc_width(self.idx_completion, self.idx_end);
         let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
+        //*****************************
         line_buf[self.idx_completion..idx_end].copy_from_slice(s.as_bytes());
+        //*****************************
         self.idx_end = idx_end;
         self.idx_cur = idx_end;
         self.output.move_cursor_left_n(width).await;
