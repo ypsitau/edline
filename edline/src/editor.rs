@@ -87,7 +87,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             range_result: (0, 0),
             first_of_line: true,
             nbytes_prompt: 0,
-            nbytes_attr: 4,
+            nbytes_attr: 1,
         }
     }
 
@@ -100,6 +100,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         let mut ibyte_dst = 0;
         for byte in prompt.as_bytes() {
             if utf8_acc.push(*byte) {
+                self.line_buf_whole[ibyte_dst..ibyte_dst + self.nbytes_attr].fill(0xff);
                 ibyte_dst += self.nbytes_attr;
                 let s = utf8_acc.get_result();
                 self.line_buf_whole[ibyte_dst..ibyte_dst + s.len()].copy_from_slice(s.as_bytes());
@@ -222,13 +223,20 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
         &line_buf[idx_start..idx_start + nbytes_copy]
     }
 
-    pub fn get_result_str(&self) -> &str {
-        core::str::from_utf8(&self.get_result()).unwrap()
-    }
-
     pub fn read_result_str<const N: usize>(&self, result_str: &mut String::<N>) -> Result<(), heapless::CapacityError> {
         result_str.clear();
-        result_str.push_str(self.get_result_str())?;
+        let mut utf8_acc = Utf8Accumulator::new();
+        let mut ibyte_attr = 0;
+        for byte in self.get_result() {
+            if ibyte_attr < self.nbytes_attr {
+                ibyte_attr += 1;
+            } else if utf8_acc.push(*byte) {
+                let s = utf8_acc.get_result();
+                result_str.push_str(s).unwrap();
+                utf8_acc.reset();
+                ibyte_attr = 0;
+            }
+        }
         Ok(())
     }
 
@@ -386,13 +394,14 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     }
 
     pub fn insert_char_to_buf(&mut self, idx: usize, c: char) -> usize {
-        let mut buf_enc = [0; 4];
+        let mut buf_enc = [0u8; 4];
         let bytes_insert = c.encode_utf8(&mut buf_enc).as_bytes();
         let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
         if self.idx_end + self.nbytes_attr + bytes_insert.len() > line_buf.len() { return 0; }
         if idx < self.idx_end {
             line_buf.copy_within(idx..self.idx_end, idx + bytes_insert.len());
         }
+        line_buf[idx..idx + self.nbytes_attr].fill(0xff);
         line_buf[idx + self.nbytes_attr..idx + self.nbytes_attr + bytes_insert.len()].copy_from_slice(bytes_insert);
         self.idx_end += self.nbytes_attr + bytes_insert.len();
         self.nbytes_attr + bytes_insert.len()
