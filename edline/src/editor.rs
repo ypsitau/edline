@@ -87,7 +87,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             range_result: (0, 0),
             first_of_line: true,
             nbytes_prompt: 0,
-            nbytes_attr: 1,
+            nbytes_attr: 4,
         }
     }
 
@@ -107,8 +107,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
                 utf8_acc.reset();
             }
         }
-        self.line_buf_whole[..prompt.len()].copy_from_slice(prompt.as_bytes());
-        self.nbytes_prompt = prompt.len();
+        self.nbytes_prompt = nbytes_prompt_new;
     }
 
     pub async fn init(&mut self) {
