@@ -87,7 +87,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             range_result: (0, 0),
             first_of_line: true,
             nbytes_prompt: 0,
-            nbytes_attr: 0,
+            nbytes_attr: 4,
         }
     }
 
