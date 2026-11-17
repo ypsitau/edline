@@ -8,7 +8,11 @@ impl CharAttr {
     pub const NBYTES: usize = 4;
 
     pub fn new() -> Self {
-        Self { buf: [0xffu8; Self::NBYTES], nbytes_cur: 0 }
+        Self { buf: [0x80u8; Self::NBYTES], nbytes_cur: 0 }
+    }
+
+    pub fn default() -> Self {
+        Self { buf: [0x80u8; Self::NBYTES], nbytes_cur: Self::NBYTES }
     }
 
     pub fn clear(&mut self) {
@@ -29,5 +33,9 @@ impl CharAttr {
     pub fn clone_from(&mut self, other: &Self) {
         self.buf = other.buf;
         self.nbytes_cur = other.nbytes_cur;
+    }
+
+    pub fn get_bytes(&self) -> &[u8] {
+        &self.buf
     }
 }

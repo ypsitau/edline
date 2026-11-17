@@ -270,8 +270,17 @@ where
     }
 
     async fn print(&mut self, s: &str) {
-        self.write(s.as_bytes()).await;
-        self.rollback_buf.wrap_push(s.as_bytes(), self.n_cols as usize).unwrap();
+        let mut utf8_acc = Utf8Accumulator::new();
+        let char_attr = CharAttr::default();
+        for byte in s.as_bytes() {
+            if utf8_acc.push(*byte) {
+                let s = utf8_acc.get_result();
+                self.write(char_attr.get_bytes()).await;
+                self.write(s.as_bytes()).await;
+                utf8_acc.reset();
+            }
+        }
+        //self.rollback_buf.wrap_push(s.as_bytes(), self.n_cols as usize).unwrap();
     }
 
     async fn new_line(&mut self, line_buf_combined: &[u8]) {
