@@ -17,14 +17,14 @@ pub struct ConsoleOutput<Writer> {
     writer: Writer,
     n_cols: usize,
     n_rows: usize,
-    i_col: usize,
+    pos: usize,
     _config: Config,
     utf8_acc: Utf8Accumulator,
 }
 
 impl<Writer: io_async::Write> ConsoleOutput<Writer> {
     pub fn new(writer: Writer, config: Config) -> Self {
-        Self { writer, n_cols: 80, n_rows: 25, i_col: 0, _config: config, utf8_acc: Utf8Accumulator::new() }
+        Self { writer, n_cols: 80, n_rows: 25, pos: 0, _config: config, utf8_acc: Utf8Accumulator::new() }
     }
 }
 
@@ -34,14 +34,28 @@ impl<Writer: io_async::Write> crate::editor::Output for ConsoleOutput<Writer> {
     async fn init(&mut self) {}
     
     async fn write(&mut self, data: &[u8]) {
-        self.writer.write_all(data).await.unwrap();
-        self.writer.flush().await.unwrap();
         for byte in data {
             if self.utf8_acc.push(*byte) {
                 let s = self.utf8_acc.get_result();
-                self.i_col += UnicodeWidthStr::width(s);
+                if s == "\n" {
+                    self.writer.write_all(b"\r\n").await.unwrap();
+                    self.pos = 0;
+                } else {
+                    self.writer.write_all(s.as_bytes()).await.unwrap();
+                    self.pos += UnicodeWidthStr::width(s);
+                }
+                self.utf8_acc.reset();
             }
         }
+        self.writer.flush().await.unwrap();
+        //self.writer.write_all(data).await.unwrap();
+        //self.writer.flush().await.unwrap();
+        //for byte in data {
+        //    if self.utf8_acc.push(*byte) {
+        //        let s = self.utf8_acc.get_result();
+        //        self.i_col += UnicodeWidthStr::width(s);
+        //    }
+        //}
     }
 
     async fn print(&mut self, s: &str) {
@@ -51,7 +65,7 @@ impl<Writer: io_async::Write> crate::editor::Output for ConsoleOutput<Writer> {
     async fn new_line(&mut self, _line_buf_combined: &[u8]) {
         self.writer.write_all(b"\r\n").await.unwrap();
         self.writer.flush().await.unwrap();
-        self.i_col = 0;
+        self.pos = 0;
         self.utf8_acc.reset();
     }
 

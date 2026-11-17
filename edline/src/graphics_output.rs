@@ -226,25 +226,24 @@ where
     async fn write(&mut self, data: &[u8]) {
         self.hide_cursor();
         for byte in data {
-            if !self.utf8_acc.push(*byte) { continue; }
-            let s = self.utf8_acc.get_result();
-            if s == "\r" {
-                // nothing to do
-            } else if s == "\n" {
-                self.i_col = 0;
-                self.i_row += 1;
-            } else {
-                let i_col_next = self.i_col + UnicodeWidthStr::width(s) as i32;
-                if i_col_next >= self.n_cols {
+            if self.utf8_acc.push(*byte) {
+                let s = self.utf8_acc.get_result();
+                if s == "\n" {
                     self.i_col = 0;
                     self.i_row += 1;
+                } else {
+                    let i_col_next = self.i_col + UnicodeWidthStr::width(s) as i32;
+                    if i_col_next >= self.n_cols {
+                        self.i_col = 0;
+                        self.i_row += 1;
+                    }
+                    let pt = self.calc_point(self.i_col, self.i_row);
+                    eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
+                        .draw(&mut self.target).ok();
+                    self.i_col = i_col_next;
                 }
-                let pt = self.calc_point(self.i_col, self.i_row);
-                eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
-                    .draw(&mut self.target).ok();
-                self.i_col = i_col_next;
+                self.utf8_acc.reset();
             }
-            self.utf8_acc.reset();
         }
         self.show_cursor();
     }
@@ -295,7 +294,7 @@ where
     }
 
     async fn query_text_area_size(&mut self) {
-        // nothing to do        
+        // nothing to do
     }
 
     async fn update_text_area_size(&mut self, _n_cols: usize, _n_rows: usize) {
