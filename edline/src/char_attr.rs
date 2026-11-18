@@ -3,13 +3,24 @@
 //-----------------------------------------------------------------------------
 pub trait CharAttr: PartialEq {
     const NBYTES: usize;
+
     fn new() -> Self;
+
     fn default() -> Self;
+
     fn clear(&mut self);
+
     fn is_complete(&self) -> bool;
+
     fn push(&mut self, byte: u8);
+
     fn clone_from(&mut self, other: &Self);
+
     fn get_bytes(&self) -> &[u8];
+
+    fn ansi_foreground(&self) -> u8;
+
+    fn ansi_background(&self) -> u8;
 }
 
 //-----------------------------------------------------------------------------
@@ -34,6 +45,10 @@ impl CharAttr for CharAttrNone {
     fn clone_from(&mut self, _other: &Self) {}
 
     fn get_bytes(&self) -> &[u8] { &[] }
+
+    fn ansi_foreground(&self) -> u8 { 0 }
+
+    fn ansi_background(&self) -> u8 { 0 }
 }
 
 //-----------------------------------------------------------------------------
@@ -79,6 +94,13 @@ impl CharAttr for CharAttr16Colors {
     fn get_bytes(&self) -> &[u8] {
         &self.buf
     }
+    fn ansi_foreground(&self) -> u8 {
+        self.buf[0] & 0x0f
+    }
+
+    fn ansi_background(&self) -> u8 {
+        (self.buf[0] >> 4) & 0x0f
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -123,5 +145,13 @@ impl CharAttr for CharAttr256Colors {
 
     fn get_bytes(&self) -> &[u8] {
         &self.buf
+    }
+
+    fn ansi_foreground(&self) -> u8 {
+        self.buf[0]
+    }
+
+    fn ansi_background(&self) -> u8 {
+        self.buf[1]
     }
 }
