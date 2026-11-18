@@ -14,7 +14,7 @@ use crate::char_attr;
 use crate::utf8_accumulator::Utf8Accumulator;
 use crate::console_output::Config as ConsoleConfig;
 use crate::graphics_output::Config as GraphicsConfig;
-pub use crate::char_attr::{CharAttrSimple, CharAttrNone};
+pub use crate::char_attr::{CharAttrNone, CharAttr16Colors, CharAttr256Colors};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
@@ -470,16 +470,26 @@ where
     }
 }
 
-impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttrSimple>, CharAttrSimple>
+impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttr16Colors>, CharAttr16Colors>
 where
     Writer: io_async::Write
 {
-    pub fn with_serial_output_attr(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer, config: ConsoleConfig) -> Self {
+    pub fn with_serial_output_16colors(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer, config: ConsoleConfig) -> Self {
         Self::new(line_buf, history_buf, ConsoleOutput::new(writer, config))
     }
 }
 
-impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType> Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttrNone>, CharAttrNone>
+impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttr256Colors>, CharAttr256Colors>
+where
+    Writer: io_async::Write
+{
+    pub fn with_serial_output_256colors(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer, config: ConsoleConfig) -> Self {
+        Self::new(line_buf, history_buf, ConsoleOutput::new(writer, config))
+    }
+}
+
+impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType>
+    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttrNone>, CharAttrNone>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     DelayNs: hal_async::delay::DelayNs,
@@ -493,14 +503,30 @@ where
     }
 }
 
-impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType> Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttrSimple>, CharAttrSimple>
+impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType>
+    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttr16Colors>, CharAttr16Colors>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
     ColorType: From<eg::pixelcolor::Rgb888>,
 {
-    pub fn with_graphics_output_attr(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
+    pub fn with_graphics_output_16colors(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
+        rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
+        target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
+        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
+    }
+}
+
+impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType>
+    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttr256Colors>, CharAttr256Colors>
+where
+    DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
+    DelayNs: hal_async::delay::DelayNs,
+    FnRefresh: FnMut(&mut DrawTarget),
+    ColorType: From<eg::pixelcolor::Rgb888>,
+{
+    pub fn with_graphics_output_256colors(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
         rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
         target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
         Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
@@ -508,7 +534,11 @@ where
 }
 
 #[allow(dead_code)]
-pub async fn simple_task_console(writer: impl io_async::Write, key_reader: impl keycode::ReadKey, enable_break: bool) {
+pub async fn simple_task_console<Writer, KeyReader>(writer: Writer, key_reader: KeyReader, enable_break: bool)
+where
+    Writer: io_async::Write,
+    KeyReader: keycode::ReadKey,
+{
     let line_buf = {
         const BUFSIZE: usize = 128;
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
@@ -521,7 +551,7 @@ pub async fn simple_task_console(writer: impl io_async::Write, key_reader: impl 
     };
     
     let config = ConsoleConfig::default();
-    let editor = Editor::with_serial_output(line_buf, history_buf, writer, config);
+    let editor = Editor::with_serial_output_16colors(line_buf, history_buf, writer, config);
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
@@ -562,7 +592,12 @@ where
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
-pub async fn simple_task_common(mut editor: Editor<'_, impl Output, impl char_attr::CharAttr>, mut reader: impl keycode::ReadKey, enable_break: bool) {
+pub async fn simple_task_common<OutputT, CharAttrType, KeyReader>(mut editor: Editor<'_, OutputT, CharAttrType>, mut reader: KeyReader, enable_break: bool)
+where
+    OutputT: Output,
+    CharAttrType: char_attr::CharAttr,
+    KeyReader: keycode::ReadKey,
+{
     let mut sbuf_result: heapless::String<128> = heapless::String::new();
     editor.init().await;
     editor.set_prompt("> ");
