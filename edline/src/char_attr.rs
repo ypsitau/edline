@@ -22,7 +22,7 @@ pub struct CharAttrSimple {
 }
 
 impl CharAttr for CharAttrSimple {
-    const NBYTES: usize = 4;
+    const NBYTES: usize = 1;
 
     fn new() -> Self {
         Self { buf: [0x80u8; Self::NBYTES], nbytes_cur: 0 }
@@ -66,25 +66,17 @@ pub struct CharAttrNone;
 impl CharAttr for CharAttrNone {
     const NBYTES: usize = 0;
 
-    fn new() -> Self {
-        Self
-    }
+    fn new() -> Self { Self }
 
-    fn default() -> Self {
-        Self
-    }
+    fn default() -> Self { Self }
 
     fn clear(&mut self) {}
 
-    fn is_complete(&self) -> bool {
-        true
-    }
+    fn is_complete(&self) -> bool { true }
 
     fn push(&mut self, _byte: u8) {}
 
     fn clone_from(&mut self, _other: &Self) {}
 
-    fn get_bytes(&self) -> &[u8] {
-        &[]
-    }
+    fn get_bytes(&self) -> &[u8] { &[] }
 }
