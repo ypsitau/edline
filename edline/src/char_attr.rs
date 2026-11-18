@@ -24,12 +24,12 @@ pub trait CharAttr: PartialEq {
 }
 
 //-----------------------------------------------------------------------------
-// CharAttrNone
+// CharAttrConstColor
 //-----------------------------------------------------------------------------
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub struct CharAttrNone;
+pub struct CharAttrConstColor;
 
-impl CharAttr for CharAttrNone {
+impl CharAttr for CharAttrConstColor {
     const NBYTES: usize = 0;
 
     fn new() -> Self { Self }

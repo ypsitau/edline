@@ -14,7 +14,7 @@ use crate::char_attr;
 use crate::utf8_accumulator::Utf8Accumulator;
 use crate::console_output::Config as ConsoleConfig;
 use crate::graphics_output::Config as GraphicsConfig;
-pub use crate::char_attr::{CharAttrNone, CharAttr16Colors, CharAttr256Colors};
+pub use crate::char_attr::{CharAttrConstColor, CharAttr16Colors, CharAttr256Colors};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
@@ -461,11 +461,21 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
     }
 }
 
-impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttrNone>, CharAttrNone>
+impl<'a, Writer, CharAttr> Editor<'a, ConsoleOutput<Writer, CharAttr>, CharAttr>
+where
+    Writer: io_async::Write,
+    CharAttr: char_attr::CharAttr,
+{
+    pub fn with_serial_output(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer, config: ConsoleConfig) -> Self {
+        Self::new(line_buf, history_buf, ConsoleOutput::new(writer, config))
+    }
+}
+
+impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttrConstColor>, CharAttrConstColor>
 where
     Writer: io_async::Write
 {
-    pub fn with_serial_output(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer, config: ConsoleConfig) -> Self {
+    pub fn with_serial_output_const_color(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer, config: ConsoleConfig) -> Self {
         Self::new(line_buf, history_buf, ConsoleOutput::new(writer, config))
     }
 }
@@ -488,15 +498,31 @@ where
     }
 }
 
+impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType, CharAttr>
+    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttr>, CharAttr>
+where
+    DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
+    DelayNs: hal_async::delay::DelayNs,
+    FnRefresh: FnMut(&mut DrawTarget),
+    ColorType: From<eg::pixelcolor::Rgb888>,
+    CharAttr: char_attr::CharAttr,
+{
+    pub fn with_graphics_output(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
+        rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
+        target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
+        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
+    }
+}
+
 impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType>
-    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttrNone>, CharAttrNone>
+    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttrConstColor>, CharAttrConstColor>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
     ColorType: From<eg::pixelcolor::Rgb888>,
 {
-    pub fn with_graphics_output(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
+    pub fn with_graphics_output_const_color(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
         rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
         target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
         Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
@@ -588,7 +614,7 @@ where
         .text_color(ColorType::from(eg::pixelcolor::Rgb888::new(255, 255, 255)))
         .background_color(ColorType::from(eg::pixelcolor::Rgb888::new(0, 0, 128)))
         .ht_cursor(2);
-    let editor = Editor::with_graphics_output(line_buf, history_buf, rollback_buf, work_buf, target, config, delay, fn_refresh);
+    let editor = Editor::with_graphics_output_const_color(line_buf, history_buf, rollback_buf, work_buf, target, config, delay, fn_refresh);
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
