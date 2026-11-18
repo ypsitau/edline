@@ -2,7 +2,7 @@ use embedded_hal_async as hal_async;
 use embedded_graphics as eg;
 use embedded_graphics::prelude::*;
 use unicode_width::UnicodeWidthStr;
-use crate::char_attr::CharAttr;
+use crate::char_attr;
 use crate::round_buffer::RoundBuffer;
 use crate::utf8_accumulator::Utf8Accumulator;
 
@@ -57,7 +57,7 @@ impl<ColorType: From<eg::pixelcolor::Rgb888>> Config<ColorType> {
 //-----------------------------------------------------------------------------
 // GraphicsOutput
 //-----------------------------------------------------------------------------
-pub struct GraphicsOutput<'a, DrawTarget: eg::draw_target::DrawTarget, DelayNs, FnRefresh> {
+pub struct GraphicsOutput<'a, DrawTarget: eg::draw_target::DrawTarget, DelayNs, FnRefresh, CharAttr> {
     target: DrawTarget,
     character_style: eg::mono_font::MonoTextStyle<'static, DrawTarget::Color>,
     text_style: eg::text::TextStyle,
@@ -80,11 +80,12 @@ pub struct GraphicsOutput<'a, DrawTarget: eg::draw_target::DrawTarget, DelayNs, 
     cursor_blinking_toggle: bool,
 }
 
-impl<'a, DrawTarget, DelayNs, FnRefresh> GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh>
+impl<'a, DrawTarget, DelayNs, FnRefresh, CharAttr> GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttr>
 where
     DrawTarget: eg::draw_target::DrawTarget,
     DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
+    CharAttr: char_attr::CharAttr,
 {
     pub fn new(
         target: DrawTarget,
@@ -188,11 +189,12 @@ where
     }
 }
 
-impl<DrawTarget, DelayNs, FnRefresh> GraphicsOutput<'_, DrawTarget, DelayNs, FnRefresh>
+impl<DrawTarget, DelayNs, FnRefresh, CharAttr> GraphicsOutput<'_, DrawTarget, DelayNs, FnRefresh, CharAttr>
 where
     DrawTarget: eg::draw_target::DrawTarget,
     FnRefresh: FnMut(&mut DrawTarget),
     DelayNs: hal_async::delay::DelayNs,
+    CharAttr: char_attr::CharAttr,
 {
     fn draw_cursor(&mut self, visible: bool) {
         let color = if visible { self.config.text_color } else { self.config.background_color };
@@ -219,12 +221,13 @@ where
     }
 }
 
-impl<DrawTarget, DelayNs, FnRefresh> crate::editor::Output
-    for GraphicsOutput<'_, DrawTarget, DelayNs, FnRefresh>
+impl<DrawTarget, DelayNs, FnRefresh, CharAttr> crate::editor::Output
+    for GraphicsOutput<'_, DrawTarget, DelayNs, FnRefresh, CharAttr>
 where
     DrawTarget: eg::draw_target::DrawTarget,
     DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
+    CharAttr: char_attr::CharAttr,
 {
     type Error = ();
 

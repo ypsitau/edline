@@ -2,7 +2,7 @@ use heapless::String;
 use core::fmt::Write as _;
 use embedded_io_async as io_async;
 use unicode_width::UnicodeWidthStr;
-use crate::char_attr::CharAttr;
+use crate::char_attr;
 use crate::utf8_accumulator::Utf8Accumulator;
 
 pub struct Config {
@@ -14,7 +14,7 @@ impl Config {
     }
 }
 
-pub struct ConsoleOutput<Writer> {
+pub struct ConsoleOutput<Writer, CharAttr: char_attr::CharAttr> {
     writer: Writer,
     _config: Config,
     utf8_acc: Utf8Accumulator,
@@ -25,7 +25,7 @@ pub struct ConsoleOutput<Writer> {
     pos: usize,
 }
 
-impl<Writer: io_async::Write> ConsoleOutput<Writer> {
+impl<Writer: io_async::Write, CharAttr: char_attr::CharAttr> ConsoleOutput<Writer, CharAttr> {
     pub fn new(writer: Writer, config: Config) -> Self {
         Self {
             writer,
@@ -40,7 +40,7 @@ impl<Writer: io_async::Write> ConsoleOutput<Writer> {
     }
 }
 
-impl<Writer: io_async::Write> crate::editor::Output for ConsoleOutput<Writer> {
+impl<Writer: io_async::Write, CharAttr: char_attr::CharAttr> crate::editor::Output for ConsoleOutput<Writer, CharAttr> {
     type Error = Writer::Error;
 
     async fn init(&mut self) {}

@@ -10,10 +10,11 @@ use embedded_graphics as eg;
 use embedded_hal_async as hal_async;
 use embedded_keycode as keycode;
 use unicode_width::UnicodeWidthStr;
-use crate::char_attr::CharAttr;
+use crate::char_attr;
 use crate::utf8_accumulator::Utf8Accumulator;
 use crate::console_output::Config as ConsoleConfig;
 use crate::graphics_output::Config as GraphicsConfig;
+pub use crate::char_attr::{CharAttrSimple, CharAttrNone};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
@@ -58,20 +59,21 @@ impl Output for DummyOutput {
     async fn update_text_area_size(&mut self, _n_cols: usize, _n_rows: usize) {}
 }
 
-pub struct Editor<'a, Output> {
+pub struct Editor<'a, CharAttr, OutputT> {
     line_buf_whole: &'a mut [u8],
     history_buf: RoundBuffer<'a>,
     offset_history: usize,
-    output: Output,
+    output: OutputT,
     idx_cur: usize,
     idx_end: usize,
     idx_completion: usize,
     range_result: (usize, usize),
     first_of_line: bool,
     nbytes_prompt: usize,
+    _phantom: core::marker::PhantomData<CharAttr>,
 }
 
-impl<'a, OutputT: Output> Editor<'a, OutputT> {
+impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, CharAttr, OutputT> {
     const IDX_NONE: usize = usize::MAX;
 
     pub fn new(line_buf_whole: &'a mut [u8], history_buf: &'a mut [u8], output: OutputT) -> Self {
@@ -87,6 +89,7 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
             range_result: (0, 0),
             first_of_line: true,
             nbytes_prompt: 0,
+            _phantom: core::marker::PhantomData::<CharAttr>,
         }
     }
 
@@ -458,18 +461,19 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     }
 }
 
-impl<'a, Writer: io_async::Write> Editor<'a, ConsoleOutput<Writer>> {
+impl<'a, Writer: io_async::Write, CharAttr: char_attr::CharAttr> Editor<'a, CharAttr, ConsoleOutput<Writer, CharAttr>> {
     pub fn with_serial_output(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer, config: ConsoleConfig) -> Self {
         Self::new(line_buf, history_buf, ConsoleOutput::new(writer, config))
     }
 }
 
-impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType> Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh>>
+impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType, CharAttr> Editor<'a, CharAttr, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttr>>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
     ColorType: From<eg::pixelcolor::Rgb888>,
+    CharAttr: char_attr::CharAttr,
 {
     pub fn with_graphics_output(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
         rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
@@ -479,7 +483,7 @@ where
 }
 
 #[allow(dead_code)]
-pub async fn simple_task_stream(writer: impl io_async::Write, key_reader: impl keycode::ReadKey, enable_break: bool) {
+pub async fn simple_task_console(writer: impl io_async::Write, key_reader: impl keycode::ReadKey, enable_break: bool) {
     let line_buf = {
         const BUFSIZE: usize = 128;
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
@@ -492,7 +496,7 @@ pub async fn simple_task_stream(writer: impl io_async::Write, key_reader: impl k
     };
     
     let config = ConsoleConfig::default();
-    let editor = Editor::with_serial_output(line_buf, history_buf, writer, config);
+    let editor = Editor::<CharAttrNone, _>::with_serial_output(line_buf, history_buf, writer, config);
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
@@ -529,11 +533,11 @@ where
         .text_color(ColorType::from(eg::pixelcolor::Rgb888::new(255, 255, 255)))
         .background_color(ColorType::from(eg::pixelcolor::Rgb888::new(0, 0, 128)))
         .ht_cursor(2);
-    let editor = Editor::with_graphics_output(line_buf, history_buf, rollback_buf, work_buf, target, config, delay, fn_refresh);
+    let editor = Editor::<CharAttrSimple, _>::with_graphics_output(line_buf, history_buf, rollback_buf, work_buf, target, config, delay, fn_refresh);
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
-pub async fn simple_task_common(mut editor: Editor<'_, impl Output>, mut reader: impl keycode::ReadKey, enable_break: bool) {
+pub async fn simple_task_common(mut editor: Editor<'_, impl char_attr::CharAttr, impl Output>, mut reader: impl keycode::ReadKey, enable_break: bool) {
     let mut sbuf_result: heapless::String<128> = heapless::String::new();
     editor.init().await;
     editor.set_prompt("> ");
