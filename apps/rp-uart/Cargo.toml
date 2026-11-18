@@ -32,7 +32,7 @@ embedded-io-async = { version = "0.7" }
 cortex-m-rt = { version = "0.7" }
 
 edline = { path = "../../edline" }
-serkey = { version = "0.2.0" }
+serkey = { version = "0.3.1" }
 
 [target.'cfg( target_arch = "arm" )'.dependencies]
 panic-probe = { version = "1", features = ["print-defmt"] }

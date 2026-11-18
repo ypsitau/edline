@@ -37,7 +37,7 @@ esp-println = { version = "0.17.0", features = ["log-04", "esp32"] }
 esp-rtos = { version = "0.3.0", features = ["embassy", "log-04", "esp32"] }
 
 edline = { path = "../../edline" }
-serkey = { version = "0.1.4" }
+serkey = { version = "0.3.1" }
 
 [profile.dev]
 opt-level = "s"

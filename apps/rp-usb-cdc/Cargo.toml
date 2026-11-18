@@ -13,7 +13,7 @@ regex = { version = "1.11.0" }
 
 [dependencies]
 edline = { path = "../../edline" }
-serkey = { version = "0.2.0" }
+serkey = { version = "0.3.1" }
 
 defmt = { version = "1" }
 defmt-rtt = { version = "1" }
