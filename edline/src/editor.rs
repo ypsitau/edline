@@ -11,6 +11,7 @@ use embedded_hal_async as hal_async;
 use embedded_keycode as keycode;
 use unicode_width::UnicodeWidthStr;
 use crate::char_attr;
+use crate::color::Color;
 use crate::utf8_accumulator::Utf8Accumulator;
 use crate::console_output::Config as ConsoleConfig;
 use crate::graphics_output::Config as GraphicsConfig;
@@ -424,6 +425,7 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
             line_buf.copy_within(ibyte..self.ibyte_end, ibyte + bytes_insert.len());
         }
         let char_attr = CharAttr::new();
+        char_attr.set_color_fg(Color::RED);
         line_buf[ibyte..ibyte + CharAttr::NBYTES].copy_from_slice(&char_attr.get_bytes());
         line_buf[ibyte + CharAttr::NBYTES..ibyte + CharAttr::NBYTES + bytes_insert.len()].copy_from_slice(bytes_insert);
         self.ibyte_end += CharAttr::NBYTES + bytes_insert.len();
