@@ -315,14 +315,12 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         if ibyte_end > line_buf.len() { return; }
         let width = self.calc_width(self.ibyte_completion, self.ibyte_end);
         let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
-        //*****************************
         let mut utf8_acc = Utf8Accumulator::new();
         let mut ibyte_dst = self.ibyte_completion;
         let char_attr = CharAttr::new();
         for byte in s.as_bytes() {
             if utf8_acc.push(*byte) {
-                line_buf[ibyte_dst..ibyte_dst + CharAttr::NBYTES]
-                    .copy_from_slice(char_attr.get_bytes());
+                line_buf[ibyte_dst..ibyte_dst + CharAttr::NBYTES].copy_from_slice(char_attr.get_bytes());
                 ibyte_dst += CharAttr::NBYTES;
                 let s = utf8_acc.get_result();
                 line_buf[ibyte_dst..ibyte_dst + s.len()].copy_from_slice(s.as_bytes());
@@ -330,8 +328,6 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
                 utf8_acc.reset();
             }
         }
-        //line_buf[self.ibyte_completion..ibyte_end].copy_from_slice(s.as_bytes());
-        //*****************************
         self.ibyte_end = ibyte_end;
         self.ibyte_cur = ibyte_end;
         self.output.move_cursor_left_n(width).await;
