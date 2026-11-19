@@ -64,9 +64,9 @@ pub struct Editor<'a, OutputT, CharAttr> {
     history_buf: RoundBuffer<'a>,
     offset_history: usize,
     output: OutputT,
-    idx_cur: usize,
-    idx_end: usize,
-    idx_completion: usize,
+    ibyte_cur: usize,
+    ibyte_end: usize,
+    ibyte_completion: usize,
     range_result: (usize, usize),
     first_of_line: bool,
     nbytes_prompt: usize,
@@ -74,7 +74,7 @@ pub struct Editor<'a, OutputT, CharAttr> {
 }
 
 impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, CharAttr> {
-    const IDX_NONE: usize = usize::MAX;
+    const IBYTE_NONE: usize = usize::MAX;
 
     pub fn new(line_buf_whole: &'a mut [u8], history_buf: &'a mut [u8], output: OutputT) -> Self {
         assert!(line_buf_whole.len() < history_buf.len(), "line buffer must be smaller than history buffer");
@@ -83,9 +83,9 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
             history_buf: RoundBuffer::new(history_buf),
             offset_history: RoundBuffer::OFFSET_NONE,
             output,
-            idx_cur: 0,
-            idx_end: 0,
-            idx_completion: Self::IDX_NONE,
+            ibyte_cur: 0,
+            ibyte_end: 0,
+            ibyte_completion: Self::IBYTE_NONE,
             range_result: (0, 0),
             first_of_line: true,
             nbytes_prompt: 0,
@@ -96,13 +96,15 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
     pub fn set_prompt(&mut self, prompt: &str) {
         let nchars_prompt_new = prompt.chars().count();
         let nbytes_prompt_new = prompt.len() + nchars_prompt_new * CharAttr::NBYTES;
-        if nbytes_prompt_new + self.idx_end > self.line_buf_whole.len() { return; }
-        self.line_buf_whole.copy_within(self.nbytes_prompt..self.nbytes_prompt + self.idx_end, nbytes_prompt_new);
+        if nbytes_prompt_new + self.ibyte_end > self.line_buf_whole.len() { return; }
+        self.line_buf_whole.copy_within(self.nbytes_prompt..self.nbytes_prompt + self.ibyte_end, nbytes_prompt_new);
         let mut utf8_acc = Utf8Accumulator::new();
         let mut ibyte_dst = 0;
+        let char_attr = CharAttr::default();
         for byte in prompt.as_bytes() {
             if utf8_acc.push(*byte) {
-                self.line_buf_whole[ibyte_dst..ibyte_dst + CharAttr::NBYTES].fill(0xff);
+                self.line_buf_whole[ibyte_dst..ibyte_dst + CharAttr::NBYTES]
+                    .copy_from_slice(char_attr.get_bytes());
                 ibyte_dst += CharAttr::NBYTES;
                 let s = utf8_acc.get_result();
                 self.line_buf_whole[ibyte_dst..ibyte_dst + s.len()].copy_from_slice(s.as_bytes());
@@ -114,9 +116,9 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
     }
 
     pub async fn init(&mut self) {
-        self.idx_cur = 0;
-        self.idx_end = 0;
-        self.idx_completion = Self::IDX_NONE;
+        self.ibyte_cur = 0;
+        self.ibyte_end = 0;
+        self.ibyte_completion = Self::IBYTE_NONE;
         self.range_result = (0, 0);
         self.first_of_line = true;
         self.output.init().await;
@@ -178,7 +180,7 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
             _ => {}
         }
         if !history_operation { self.offset_history = RoundBuffer::OFFSET_NONE; }
-        if quit_completion { self.idx_completion = Self::IDX_NONE; }
+        if quit_completion { self.ibyte_completion = Self::IBYTE_NONE; }
         event
     }
 
@@ -207,9 +209,9 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
     }
 
     async fn request_completition(&mut self, reverse: bool) -> Event {
-        if self.idx_completion == Self::IDX_NONE {
+        if self.ibyte_completion == Self::IBYTE_NONE {
             self.move_cursor_to_line_end().await;
-            self.idx_completion = self.idx_cur;
+            self.ibyte_completion = self.ibyte_cur;
             Event::ReqCompletionFirst
         } else if reverse {
             Event::ReqCompletionPrev
@@ -220,9 +222,9 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
 
     pub fn get_result(&self) -> &[u8] {
         let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
-        let (idx_start, idx_end) = self.range_result;
-        let nbytes_copy = (idx_end - idx_start).min(line_buf.len());
-        &line_buf[idx_start..idx_start + nbytes_copy]
+        let (ibyte_start, ibyte_end) = self.range_result;
+        let nbytes_copy = (ibyte_end - ibyte_start).min(line_buf.len());
+        &line_buf[ibyte_start..ibyte_start + nbytes_copy]
     }
 
     pub fn read_result_str<const N: usize>(&self, result_str: &mut String::<N>) -> Result<(), heapless::CapacityError> {
@@ -248,108 +250,123 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
 
     pub async fn enter(&mut self) {
         let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
-        let (idx_start, idx_end) = Self::strip(&line_buf[..self.idx_end]);
-        let line_buf_stripped = &line_buf[idx_start..idx_end];
-        if idx_start != idx_end {
+        let (ibyte_start, ibyte_end) = Self::strip(&line_buf[..self.ibyte_end]);
+        let line_buf_stripped = &line_buf[ibyte_start..ibyte_end];
+        if ibyte_start != ibyte_end {
             let mut skip_push = false;
             let mut offset_seek = RoundBuffer::OFFSET_NONE;
             if self.history_buf.seek_item_backward(&mut offset_seek) {
                 let (first, second) = self.history_buf.get_item(offset_seek).unwrap();
                 skip_push =
-                    self.idx_end == first.len() + second.len() &&
+                    self.ibyte_end == first.len() + second.len() &&
                     line_buf_stripped[..first.len()].cmp(first) == core::cmp::Ordering::Equal &&
-                    line_buf_stripped[first.len()..self.idx_end].cmp(second) == core::cmp::Ordering::Equal;
+                    line_buf_stripped[first.len()..self.ibyte_end].cmp(second) == core::cmp::Ordering::Equal;
             }
             if !skip_push {
                 self.history_buf.push(&line_buf_stripped).unwrap();
             }
         }
-        self.range_result = (idx_start, idx_end);
-        self.output.new_line(&self.line_buf_whole[..self.nbytes_prompt + self.idx_end]).await;
-        self.idx_cur = 0;
-        self.idx_end = 0;
+        self.range_result = (ibyte_start, ibyte_end);
+        self.output.new_line(&self.line_buf_whole[..self.nbytes_prompt + self.ibyte_end]).await;
+        self.ibyte_cur = 0;
+        self.ibyte_end = 0;
         self.first_of_line = true;
     }
 
     pub async fn recall_history_prev(&mut self) {
-        let width = self.calc_width(0, self.idx_cur);
+        let width = self.calc_width(0, self.ibyte_cur);
         if self.history_buf.seek_item_backward(&mut self.offset_history) {
             let (first, second) = self.history_buf.get_item(self.offset_history).unwrap();
-            let idx_end = first.len() + second.len();
+            let ibyte_end = first.len() + second.len();
             let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
-            assert!(idx_end <= line_buf.len());
+            assert!(ibyte_end <= line_buf.len());
             line_buf[..first.len()].copy_from_slice(first);
-            line_buf[first.len()..idx_end].copy_from_slice(second);
-            self.idx_end = idx_end;
-            self.idx_cur = idx_end;
+            line_buf[first.len()..ibyte_end].copy_from_slice(second);
+            self.ibyte_end = ibyte_end;
+            self.ibyte_cur = ibyte_end;
             self.output.move_cursor_left_n(width).await;
-            self.output.write(&line_buf[..idx_end]).await;
+            self.output.write(&line_buf[..ibyte_end]).await;
             self.output.delete_to_line_end().await;
         }
     }
 
     pub async fn recall_history_next(&mut self) {
-        let width = self.calc_width(0, self.idx_cur);
+        let width = self.calc_width(0, self.ibyte_cur);
         if self.history_buf.seek_item_forward(&mut self.offset_history) {
             let (first, second) = self.history_buf.get_item(self.offset_history).unwrap();
-            let idx_end = first.len() + second.len();
+            let ibyte_end = first.len() + second.len();
             let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
-            assert!(idx_end <= line_buf.len());
+            assert!(ibyte_end <= line_buf.len());
             line_buf[..first.len()].copy_from_slice(first);
-            line_buf[first.len()..idx_end].copy_from_slice(second);
-            self.idx_end = idx_end;
-            self.idx_cur = idx_end;
+            line_buf[first.len()..ibyte_end].copy_from_slice(second);
+            self.ibyte_end = ibyte_end;
+            self.ibyte_cur = ibyte_end;
             self.output.move_cursor_left_n(width).await;
-            self.output.write(&line_buf[..idx_end]).await;
+            self.output.write(&line_buf[..ibyte_end]).await;
             self.output.delete_to_line_end().await;
         }
     }
 
     pub async fn fulfill_completion(&mut self, s: &str) {
-        if self.idx_completion == Self::IDX_NONE { return; }
-        let idx_end = self.idx_completion + s.len();
+        if self.ibyte_completion == Self::IBYTE_NONE { return; }
+        let nbytes_inserted = s.len() + s.chars().count() * CharAttr::NBYTES;
+        let ibyte_end = self.ibyte_completion + nbytes_inserted;
         let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
-        if idx_end > line_buf.len() { return; }
-        let width = self.calc_width(self.idx_completion, self.idx_end);
+        if ibyte_end > line_buf.len() { return; }
+        let width = self.calc_width(self.ibyte_completion, self.ibyte_end);
         let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
         //*****************************
-        line_buf[self.idx_completion..idx_end].copy_from_slice(s.as_bytes());
+        let mut utf8_acc = Utf8Accumulator::new();
+        let mut ibyte_dst = self.ibyte_completion;
+        let char_attr = CharAttr::default();
+        for byte in s.as_bytes() {
+            if utf8_acc.push(*byte) {
+                line_buf[ibyte_dst..ibyte_dst + CharAttr::NBYTES]
+                    .copy_from_slice(char_attr.get_bytes());
+                ibyte_dst += CharAttr::NBYTES;
+                let s = utf8_acc.get_result();
+                line_buf[ibyte_dst..ibyte_dst + s.len()].copy_from_slice(s.as_bytes());
+                ibyte_dst += s.len();
+                utf8_acc.reset();
+            }
+        }
+        //line_buf[self.ibyte_completion..ibyte_end].copy_from_slice(s.as_bytes());
         //*****************************
-        self.idx_end = idx_end;
-        self.idx_cur = idx_end;
+        self.ibyte_end = ibyte_end;
+        self.ibyte_cur = ibyte_end;
         self.output.move_cursor_left_n(width).await;
-        self.output.write(&line_buf[self.idx_completion..idx_end]).await;
+        self.output.write(&line_buf[self.ibyte_completion..ibyte_end]).await;
         self.output.delete_to_line_end().await;
     }
 
     pub async fn insert_char(&mut self, c: char) {
-        let nbytes_inserted = self.insert_char_to_buf(self.idx_cur, c);
+        let nbytes_inserted = self.insert_char_to_buf(self.ibyte_cur, c);
         if nbytes_inserted == 0 { return; }
         let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
-        let idx_next = self.idx_cur + nbytes_inserted;
-        if self.idx_end < idx_next { self.idx_end = idx_next; }
-        self.output.write(&line_buf[self.idx_cur..self.idx_end]).await;
-        if idx_next < self.idx_end {
-            self.output.move_cursor_left_n(self.calc_width(idx_next, self.idx_end)).await;
+        let ibyte_next = self.ibyte_cur + nbytes_inserted;
+        if self.ibyte_end < ibyte_next { self.ibyte_end = ibyte_next; }
+        self.output.write(&line_buf[self.ibyte_cur..self.ibyte_end]).await;
+        if ibyte_next < self.ibyte_end {
+            self.output.move_cursor_left_n(self.calc_width(ibyte_next, self.ibyte_end)).await;
         }
-        self.idx_cur = idx_next;
+        self.ibyte_cur = ibyte_next;
     }
 
     pub async fn delete_char(&mut self) {
-        if self.idx_cur >= self.idx_end { return; }
-        self.delete_char_from_buf(self.idx_cur);
+        if self.ibyte_cur >= self.ibyte_end { return; }
+        self.delete_char_from_buf(self.ibyte_cur);
         let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
-        self.output.write(&line_buf[self.idx_cur..self.idx_end]).await;
+        self.output.write(&line_buf[self.ibyte_cur..self.ibyte_end]).await;
         self.output.delete_to_line_end().await;
-        if self.idx_cur < self.idx_end {
-            self.output.move_cursor_left_n(self.calc_width(self.idx_cur, self.idx_end)).await;
+        if self.ibyte_cur < self.ibyte_end {
+            self.output.move_cursor_left_n(self.calc_width(self.ibyte_cur, self.ibyte_end)).await;
         }
     }
 
     pub async fn delete_to_line_end(&mut self) {
-        if self.idx_cur >= self.idx_end { return; }
+        if self.ibyte_cur >= self.ibyte_end { return; }
         self.output.delete_to_line_end().await;
-        self.idx_end = self.idx_cur;
+        self.ibyte_end = self.ibyte_cur;
     }
 
     pub async fn backspace(&mut self) {
@@ -359,74 +376,74 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
     }
 
     pub async fn move_cursor_to_line_start(&mut self) {
-        if self.idx_cur == 0 { return; }
-        self.output.move_cursor_left_n(self.calc_width(0, self.idx_cur)).await;
-        self.idx_cur = 0;
+        if self.ibyte_cur == 0 { return; }
+        self.output.move_cursor_left_n(self.calc_width(0, self.ibyte_cur)).await;
+        self.ibyte_cur = 0;
     }
 
     pub async fn move_cursor_to_line_end(&mut self) {
-        if self.idx_cur == self.idx_end { return; }
-        self.output.move_cursor_right_n(self.calc_width(self.idx_cur, self.idx_end)).await;
-        self.idx_cur = self.idx_end;
+        if self.ibyte_cur == self.ibyte_end { return; }
+        self.output.move_cursor_right_n(self.calc_width(self.ibyte_cur, self.ibyte_end)).await;
+        self.ibyte_cur = self.ibyte_end;
     }
 
     pub async fn move_cursor_left(&mut self) -> bool {
-        if self.idx_cur == 0 { return false; }
-        let mut idx_prev = self.idx_cur - 1;
+        if self.ibyte_cur == 0 { return false; }
+        let mut ibyte_prev = self.ibyte_cur - 1;
         let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
-        while idx_prev > 0 && line_buf[idx_prev] & 0xc0 == 0x80 {
-            idx_prev -= 1;
+        while ibyte_prev > 0 && line_buf[ibyte_prev] & 0xc0 == 0x80 {
+            ibyte_prev -= 1;
         }
-        idx_prev -= CharAttr::NBYTES;
-        self.output.move_cursor_left_n(self.calc_width(idx_prev, self.idx_cur)).await;
-        self.idx_cur = idx_prev;
+        ibyte_prev -= CharAttr::NBYTES;
+        self.output.move_cursor_left_n(self.calc_width(ibyte_prev, self.ibyte_cur)).await;
+        self.ibyte_cur = ibyte_prev;
         true
     }
 
     pub async fn move_cursor_right(&mut self) -> bool {
-        if self.idx_cur >= self.idx_end { return false; }
-        let mut idx_next = self.idx_cur + CharAttr::NBYTES + 1;
+        if self.ibyte_cur >= self.ibyte_end { return false; }
+        let mut ibyte_next = self.ibyte_cur + CharAttr::NBYTES + 1;
         let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
-        while idx_next < self.idx_end && line_buf[idx_next] & 0xc0 == 0x80 {
-            idx_next += 1;
+        while ibyte_next < self.ibyte_end && line_buf[ibyte_next] & 0xc0 == 0x80 {
+            ibyte_next += 1;
         }
-        self.output.move_cursor_right_n(self.calc_width(self.idx_cur, idx_next)).await;
-        self.idx_cur = idx_next;
+        self.output.move_cursor_right_n(self.calc_width(self.ibyte_cur, ibyte_next)).await;
+        self.ibyte_cur = ibyte_next;
         true
     }
 
-    pub fn insert_char_to_buf(&mut self, idx: usize, c: char) -> usize {
+    pub fn insert_char_to_buf(&mut self, ibyte: usize, c: char) -> usize {
         let mut buf_enc = [0u8; 4];
         let bytes_insert = c.encode_utf8(&mut buf_enc).as_bytes();
         let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
-        if self.idx_end + CharAttr::NBYTES + bytes_insert.len() > line_buf.len() { return 0; }
-        if idx < self.idx_end {
-            line_buf.copy_within(idx..self.idx_end, idx + bytes_insert.len());
+        if self.ibyte_end + CharAttr::NBYTES + bytes_insert.len() > line_buf.len() { return 0; }
+        if ibyte < self.ibyte_end {
+            line_buf.copy_within(ibyte..self.ibyte_end, ibyte + bytes_insert.len());
         }
-        line_buf[idx..idx + CharAttr::NBYTES].fill(0xff);
-        line_buf[idx + CharAttr::NBYTES..idx + CharAttr::NBYTES + bytes_insert.len()].copy_from_slice(bytes_insert);
-        self.idx_end += CharAttr::NBYTES + bytes_insert.len();
+        line_buf[ibyte..ibyte + CharAttr::NBYTES].fill(0xff);
+        line_buf[ibyte + CharAttr::NBYTES..ibyte + CharAttr::NBYTES + bytes_insert.len()].copy_from_slice(bytes_insert);
+        self.ibyte_end += CharAttr::NBYTES + bytes_insert.len();
         CharAttr::NBYTES + bytes_insert.len()
     }
 
-    pub fn delete_char_from_buf(&mut self, idx: usize) -> usize {
-        if idx >= self.idx_end { return 0; }
+    pub fn delete_char_from_buf(&mut self, ibyte: usize) -> usize {
+        if ibyte >= self.ibyte_end { return 0; }
         let mut nbytes_delete = CharAttr::NBYTES + 1;
         let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
-        while idx + nbytes_delete < self.idx_end && line_buf[idx + nbytes_delete] & 0xc0 == 0x80 {
+        while ibyte + nbytes_delete < self.ibyte_end && line_buf[ibyte + nbytes_delete] & 0xc0 == 0x80 {
             nbytes_delete += 1;
         }
-        line_buf.copy_within(idx + nbytes_delete..self.idx_end, idx);
-        self.idx_end -= nbytes_delete;
+        line_buf.copy_within(ibyte + nbytes_delete..self.ibyte_end, ibyte);
+        self.ibyte_end -= nbytes_delete;
         nbytes_delete
     }
 
-    pub fn calc_width(&self, idx_start: usize, idx_end: usize) -> usize {
+    pub fn calc_width(&self, ibyte_start: usize, ibyte_end: usize) -> usize {
         let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
         let mut utf8_acc = Utf8Accumulator::new();
         let mut ibyte_char_attr = 0;
         let mut width = 0;
-        for byte in &line_buf[idx_start..idx_end] {
+        for byte in &line_buf[ibyte_start..ibyte_end] {
             if ibyte_char_attr < CharAttr::NBYTES {
                 ibyte_char_attr += 1;
             } else if utf8_acc.push(*byte) {
@@ -443,21 +460,21 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         fn is_skippable(byte: u8) -> bool {
             byte == 0x00 || byte == b' ' || byte == b'\t' || byte == b'\n' || byte == b'\r'
         }
-        let idx_start = {
-            let mut idx = 0;
-            while idx + CharAttr::NBYTES < buf.len() && is_skippable(buf[idx + CharAttr::NBYTES]) {
-                idx += CharAttr::NBYTES + 1;
+        let ibyte_start = {
+            let mut ibyte = 0;
+            while ibyte + CharAttr::NBYTES < buf.len() && is_skippable(buf[ibyte + CharAttr::NBYTES]) {
+                ibyte += CharAttr::NBYTES + 1;
             }
-            idx
+            ibyte
         };
-        let idx_end = {
-            let mut idx = buf.len();
-            while idx >= CharAttr::NBYTES + 1 && is_skippable(buf[idx - 1]) {
-                idx -= CharAttr::NBYTES + 1;
+        let ibyte_end = {
+            let mut ibyte = buf.len();
+            while ibyte >= CharAttr::NBYTES + 1 && is_skippable(buf[ibyte - 1]) {
+                ibyte -= CharAttr::NBYTES + 1;
             }
-            idx
+            ibyte
         };
-        (idx_start, idx_end)
+        (ibyte_start, ibyte_end)
     }
 }
 
