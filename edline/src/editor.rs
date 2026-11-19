@@ -424,8 +424,8 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         if ibyte < self.ibyte_end {
             line_buf.copy_within(ibyte..self.ibyte_end, ibyte + bytes_insert.len());
         }
-        let char_attr = CharAttr::new();
-        char_attr.set_color_fg(Color::RED);
+        let mut char_attr = CharAttr::new();
+        //char_attr.set_color_fg(Color::RED);
         line_buf[ibyte..ibyte + CharAttr::NBYTES].copy_from_slice(&char_attr.get_bytes());
         line_buf[ibyte + CharAttr::NBYTES..ibyte + CharAttr::NBYTES + bytes_insert.len()].copy_from_slice(bytes_insert);
         self.ibyte_end += CharAttr::NBYTES + bytes_insert.len();
@@ -498,7 +498,7 @@ impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttrMonoColor>, CharAttrMo
 where
     Writer: io_async::Write
 {
-    pub fn with_console_const_color(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer, config: ConsoleConfig) -> Self {
+    pub fn with_console_mono_color(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer, config: ConsoleConfig) -> Self {
         Self::new(line_buf, history_buf, ConsoleOutput::new(writer, config))
     }
 }
@@ -507,7 +507,7 @@ impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttrMonoColorDeco>, CharAt
 where
     Writer: io_async::Write
 {
-    pub fn with_console_const_color_deco(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer, config: ConsoleConfig) -> Self {
+    pub fn with_console_mono_color_deco(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer, config: ConsoleConfig) -> Self {
         Self::new(line_buf, history_buf, ConsoleOutput::new(writer, config))
     }
 }
@@ -572,7 +572,7 @@ where
     FnRefresh: FnMut(&mut DrawTarget),
     ColorType: From<eg::pixelcolor::Rgb888>,
 {
-    pub fn with_graphics_const_color(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
+    pub fn with_graphics_mono_color(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
         rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
         target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
         Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
@@ -587,7 +587,7 @@ where
     FnRefresh: FnMut(&mut DrawTarget),
     ColorType: From<eg::pixelcolor::Rgb888>,
 {
-    pub fn with_graphics_const_color_deco(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
+    pub fn with_graphics_mono_color_deco(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
         rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
         target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
         Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
@@ -672,7 +672,7 @@ where
     };
     
     let config = ConsoleConfig::default();
-    let editor = Editor::with_console_16colors(line_buf, history_buf, writer, config);
+    let editor = Editor::with_console_mono_color(line_buf, history_buf, writer, config);
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
@@ -709,7 +709,7 @@ where
         .text_color(ColorType::from(eg::pixelcolor::Rgb888::new(255, 255, 255)))
         .background_color(ColorType::from(eg::pixelcolor::Rgb888::new(0, 0, 128)))
         .ht_cursor(2);
-    let editor = Editor::with_graphics_const_color(line_buf, history_buf, rollback_buf, work_buf, target, config, delay, fn_refresh);
+    let editor = Editor::with_graphics_mono_color(line_buf, history_buf, rollback_buf, work_buf, target, config, delay, fn_refresh);
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
