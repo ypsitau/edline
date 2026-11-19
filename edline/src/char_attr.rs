@@ -9,8 +9,6 @@ pub trait CharAttr: PartialEq {
 
     fn new() -> Self;
 
-    fn default() -> Self;
-
     fn is_const(&self) -> bool;
 
     fn put_byte(&mut self, ibyte: usize, byte: u8);
@@ -35,8 +33,6 @@ impl CharAttr for CharAttrConstColor {
     const INVALID: Self = Self;
 
     fn new() -> Self { Self }
-
-    fn default() -> Self { Self }
 
     fn is_const(&self) -> bool { true }
 
@@ -64,10 +60,6 @@ impl CharAttr for CharAttr16Colors {
     const INVALID: Self = Self { buf: [0x00u8; Self::NBYTES] };
 
     fn new() -> Self {
-        Self { buf: [0x0fu8; Self::NBYTES] }
-    }
-
-    fn default() -> Self {
         Self { buf: [0x0fu8; Self::NBYTES] }
     }
 
@@ -113,10 +105,6 @@ impl CharAttr for CharAttr256Colors {
     const INVALID: Self = Self { buf: [0x00u8; Self::NBYTES] };
 
     fn new() -> Self {
-        Self { buf: [0x0fu8; Self::NBYTES] }
-    }
-
-    fn default() -> Self {
         Self { buf: [0x0fu8; Self::NBYTES] }
     }
 

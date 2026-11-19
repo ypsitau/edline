@@ -100,7 +100,7 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         self.line_buf_whole.copy_within(self.nbytes_prompt..self.nbytes_prompt + self.ibyte_end, nbytes_prompt_new);
         let mut utf8_acc = Utf8Accumulator::new();
         let mut ibyte_dst = 0;
-        let char_attr = CharAttr::default();
+        let char_attr = CharAttr::new();
         for byte in prompt.as_bytes() {
             if utf8_acc.push(*byte) {
                 self.line_buf_whole[ibyte_dst..ibyte_dst + CharAttr::NBYTES]
@@ -318,7 +318,7 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         //*****************************
         let mut utf8_acc = Utf8Accumulator::new();
         let mut ibyte_dst = self.ibyte_completion;
-        let char_attr = CharAttr::default();
+        let char_attr = CharAttr::new();
         for byte in s.as_bytes() {
             if utf8_acc.push(*byte) {
                 line_buf[ibyte_dst..ibyte_dst + CharAttr::NBYTES]

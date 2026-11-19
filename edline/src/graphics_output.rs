@@ -280,7 +280,7 @@ where
 
     async fn print(&mut self, s: &str) {
         let mut utf8_acc = Utf8Accumulator::new();
-        let char_attr = CharAttr::default();
+        let char_attr = CharAttr::new();
         for byte in s.as_bytes() {
             if utf8_acc.push(*byte) {
                 let s = utf8_acc.get_result();
