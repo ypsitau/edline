@@ -24,17 +24,17 @@ impl Color {
     pub const LIGHT_CYAN: Color = Color { code: 14 };
     pub const LIGHT_WHITE: Color = Color { code: 15 };
 
-    pub fn from_code(code: u8) -> Self {
+    pub const fn from_code(code: u8) -> Self {
         Self { code }
     }
 
-    pub fn from_rgb(r: u8, g: u8, b: u8) -> Self {
+    pub const fn from_rgb(r: u8, g: u8, b: u8) -> Self {
         // Convert RGB to ANSI 8-bit color
         let code = 16 + (36 * (r / 51)) + (6 * (g / 51)) + (b / 51);
         Self { code }
     }
 
-    pub fn from_gray(gray: u8) -> Self {
+    pub const fn from_gray(gray: u8) -> Self {
         // Convert grayscale to ANSI 8-bit color
         let code = if gray == 0 { 16 } else if gray == 255 { 231 } else {
             232 + (gray as u16 * 24 / 256) as u8
