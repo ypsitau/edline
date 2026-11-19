@@ -1,3 +1,5 @@
+use crate::color::Color;
+
 //-----------------------------------------------------------------------------
 // CharAttr
 //-----------------------------------------------------------------------------
@@ -18,9 +20,9 @@ pub trait CharAttr: PartialEq {
 
     fn get_bytes(&self) -> &[u8];
 
-    fn ansi_foreground(&self) -> u8;
+    fn set_ansi(&mut self, fg: Color, bg: Color);
 
-    fn ansi_background(&self) -> u8;
+    fn get_ansi(&self) -> (Color, Color);
 }
 
 //-----------------------------------------------------------------------------
@@ -46,9 +48,9 @@ impl CharAttr for CharAttrConstColor {
 
     fn get_bytes(&self) -> &[u8] { &[] }
 
-    fn ansi_foreground(&self) -> u8 { 0 }
+    fn set_ansi(&mut self, _fg: Color, _bg: Color) {}
 
-    fn ansi_background(&self) -> u8 { 0 }
+    fn get_ansi(&self) -> (Color, Color) { (Color::BLACK, Color::WHITE) }
 }
 
 //-----------------------------------------------------------------------------
@@ -94,12 +96,17 @@ impl CharAttr for CharAttr16Colors {
     fn get_bytes(&self) -> &[u8] {
         &self.buf
     }
-    fn ansi_foreground(&self) -> u8 {
-        self.buf[0] & 0x0f
+
+    fn set_ansi(&mut self, fg: Color, bg: Color) {
+        let code = (bg.get_code() << 4) | (fg.get_code() & 0x0f);
+        // CharAttr is not allowed to contain the code 0x00.
+        if code != 0x00 { self.buf[0] = code; }
     }
 
-    fn ansi_background(&self) -> u8 {
-        (self.buf[0] >> 4) & 0x0f
+    fn get_ansi(&self) -> (Color, Color) {
+        let fg = Color::from_code(self.buf[0] & 0x0f);
+        let bg = Color::from_code((self.buf[0] >> 4) & 0x0f);
+        (fg, bg)
     }
 }
 
@@ -147,11 +154,16 @@ impl CharAttr for CharAttr256Colors {
         &self.buf
     }
 
-    fn ansi_foreground(&self) -> u8 {
-        self.buf[0]
+    fn set_ansi(&mut self, fg: Color, bg: Color) {
+        // Convert standard colors to RGB cube before storing their codes.
+        // This avoids storing 0x00 code for standard colors.
+        self.buf[0] = fg.standard_to_rgb_cube().get_code();
+        self.buf[1] = bg.standard_to_rgb_cube().get_code();
     }
 
-    fn ansi_background(&self) -> u8 {
-        self.buf[1]
+    fn get_ansi(&self) -> (Color, Color) {
+        let fg = Color::from_code(self.buf[0]);
+        let bg = Color::from_code(self.buf[1]);
+        (fg, bg)
     }
 }

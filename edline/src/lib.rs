@@ -44,6 +44,7 @@
 #![no_std]
 
 mod editor;
+mod color;
 mod char_attr;
 mod round_buffer;
 mod console_output;
@@ -52,3 +53,4 @@ mod utf8_accumulator;
 
 pub use editor::*;
 pub use round_buffer::RoundBuffer;
+pub use color::Color;
