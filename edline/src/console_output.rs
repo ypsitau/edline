@@ -19,6 +19,7 @@ pub struct ConsoleOutput<Writer, CharAttr: char_attr::CharAttr> {
     _config: Config,
     utf8_acc: Utf8Accumulator,
     char_attr: CharAttr,
+    ibyte_char_attr: usize,
     char_attr_prev: CharAttr,
     n_cols: usize,
     n_rows: usize,
@@ -32,6 +33,7 @@ impl<Writer: io_async::Write, CharAttr: char_attr::CharAttr> ConsoleOutput<Write
             _config: config,
             utf8_acc: Utf8Accumulator::new(),
             char_attr: CharAttr::new(),
+            ibyte_char_attr: 0,
             char_attr_prev: CharAttr::new(),
             n_cols: 80,
             n_rows: 25,
@@ -47,8 +49,9 @@ impl<Writer: io_async::Write, CharAttr: char_attr::CharAttr> crate::editor::Outp
     
     async fn write(&mut self, data: &[u8]) {
         for byte in data {
-            if !self.char_attr.is_complete() {
-                self.char_attr.push(*byte);
+            if self.ibyte_char_attr < CharAttr::NBYTES {
+                self.char_attr.put_byte(self.ibyte_char_attr, *byte);
+                self.ibyte_char_attr += 1;
             } else if self.utf8_acc.push(*byte) {
                 if self.char_attr != self.char_attr_prev {
                     // Apply attribute changes here if needed
@@ -63,7 +66,7 @@ impl<Writer: io_async::Write, CharAttr: char_attr::CharAttr> crate::editor::Outp
                 }
                 self.utf8_acc.reset();
                 self.char_attr_prev.clone_from(&self.char_attr);
-                self.char_attr.clear();
+                self.ibyte_char_attr = 0;
             }
         }
         self.writer.flush().await.unwrap();

@@ -228,15 +228,15 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
     pub fn read_result_str<const N: usize>(&self, result_str: &mut String::<N>) -> Result<(), heapless::CapacityError> {
         result_str.clear();
         let mut utf8_acc = Utf8Accumulator::new();
-        let mut char_attr = CharAttr::new();
+        let mut ibyte_char_attr = 0;
         for byte in self.get_result() {
-            if !char_attr.is_complete() {
-                char_attr.push(*byte);
+            if ibyte_char_attr < CharAttr::NBYTES {
+                ibyte_char_attr += 1;
             } else if utf8_acc.push(*byte) {
                 let s = utf8_acc.get_result();
                 result_str.push_str(s).unwrap();
                 utf8_acc.reset();
-                char_attr.clear();
+                ibyte_char_attr = 0;
             }
         }
         Ok(())
@@ -424,16 +424,16 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
     pub fn calc_width(&self, idx_start: usize, idx_end: usize) -> usize {
         let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
         let mut utf8_acc = Utf8Accumulator::new();
-        let mut char_attr = CharAttr::new();
+        let mut ibyte_char_attr = 0;
         let mut width = 0;
         for byte in &line_buf[idx_start..idx_end] {
-            if !char_attr.is_complete() {
-                char_attr.push(*byte);
+            if ibyte_char_attr < CharAttr::NBYTES {
+                ibyte_char_attr += 1;
             } else if utf8_acc.push(*byte) {
                 let s = utf8_acc.get_result();
                 width += UnicodeWidthStr::width(s);
                 utf8_acc.reset();
-                char_attr.clear();
+                ibyte_char_attr = 0;
             }
         }
         width

@@ -69,6 +69,7 @@ pub struct GraphicsOutput<'a, DrawTarget: eg::draw_target::DrawTarget, DelayNs, 
     fn_refresh: FnRefresh,
     utf8_acc: Utf8Accumulator,
     char_attr: CharAttr,
+    ibyte_char_attr: usize,
     char_attr_prev: CharAttr,
     x_advance: i32,
     y_advance: i32,
@@ -116,6 +117,7 @@ where
             fn_refresh,
             utf8_acc: Utf8Accumulator::new(),
             char_attr: CharAttr::new(),
+            ibyte_char_attr: 0,
             char_attr_prev: CharAttr::new(),
             i_col: 0,
             i_row: 0,
@@ -147,6 +149,7 @@ where
         let mut offset_seek = RoundBuffer::OFFSET_NONE;
         let mut utf8_acc = Utf8Accumulator::new();
         let mut char_attr = CharAttr::new();
+        let mut ibyte_char_attr = 0;
         let mut char_attr_prev = CharAttr::new();
         let mut i_row = self.n_rows - 1;
         let y = self.calc_y(i_row);
@@ -162,8 +165,9 @@ where
             //    str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
             let y = self.calc_y(i_row);
             for byte in first.iter().chain(second.iter()) {
-                if !char_attr.is_complete() {
-                    char_attr.push(*byte);
+                if ibyte_char_attr < CharAttr::NBYTES {
+                    char_attr.put_byte(ibyte_char_attr, *byte);
+                    ibyte_char_attr += 1;
                 } else if utf8_acc.push(*byte) {
                     if char_attr != char_attr_prev {
                         // Apply attribute changes here if needed
@@ -175,7 +179,7 @@ where
                     i_col += UnicodeWidthStr::width(s) as i32;
                     utf8_acc.reset();
                     char_attr_prev.clone_from(&char_attr);
-                    char_attr.clear();
+                    ibyte_char_attr = 0;
                 }
             }
             if i_col < self.n_cols {
@@ -233,6 +237,7 @@ where
 
     async fn init(&mut self) {
         self.utf8_acc.reset();
+        self.ibyte_char_attr = 0;
         self.i_col = 0;
         self.i_row = 0;
         self.cursor_visible = false;
@@ -243,8 +248,9 @@ where
     async fn write(&mut self, data: &[u8]) {
         self.hide_cursor();
         for byte in data {
-            if !self.char_attr.is_complete() {
-                self.char_attr.push(*byte);
+            if self.ibyte_char_attr < CharAttr::NBYTES {
+                self.char_attr.put_byte(self.ibyte_char_attr, *byte);
+                self.ibyte_char_attr += 1;
             } else if self.utf8_acc.push(*byte) {
                 if self.char_attr != self.char_attr_prev {
                     // Apply attribute changes here if needed
@@ -266,7 +272,7 @@ where
                 }
                 self.utf8_acc.reset();
                 self.char_attr_prev.clone_from(&self.char_attr);
-                self.char_attr.clear();
+                self.ibyte_char_attr = 0;
             }
         }
         self.show_cursor();

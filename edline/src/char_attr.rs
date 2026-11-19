@@ -5,16 +5,15 @@ use crate::color::Color;
 //-----------------------------------------------------------------------------
 pub trait CharAttr: PartialEq {
     const NBYTES: usize;
+    const INVALID: Self;
 
     fn new() -> Self;
 
     fn default() -> Self;
 
-    fn clear(&mut self);
+    fn is_const(&self) -> bool;
 
-    fn is_complete(&self) -> bool;
-
-    fn push(&mut self, byte: u8);
+    fn put_byte(&mut self, ibyte: usize, byte: u8);
 
     fn clone_from(&mut self, other: &Self);
 
@@ -33,16 +32,15 @@ pub struct CharAttrConstColor;
 
 impl CharAttr for CharAttrConstColor {
     const NBYTES: usize = 0;
+    const INVALID: Self = Self;
 
     fn new() -> Self { Self }
 
     fn default() -> Self { Self }
 
-    fn clear(&mut self) {}
+    fn is_const(&self) -> bool { true }
 
-    fn is_complete(&self) -> bool { true }
-
-    fn push(&mut self, _byte: u8) {}
+    fn put_byte(&mut self, _ibyte: usize, _byte: u8) {}
 
     fn clone_from(&mut self, _other: &Self) {}
 
@@ -59,38 +57,30 @@ impl CharAttr for CharAttrConstColor {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct CharAttr16Colors {
     buf: [u8; Self::NBYTES],
-    nbytes_cur: usize,
 }
 
 impl CharAttr for CharAttr16Colors {
     const NBYTES: usize = 1;
+    const INVALID: Self = Self { buf: [0x00u8; Self::NBYTES] };
 
     fn new() -> Self {
-        Self { buf: [0x0fu8; Self::NBYTES], nbytes_cur: 0 }
+        Self { buf: [0x0fu8; Self::NBYTES] }
     }
 
     fn default() -> Self {
-        Self { buf: [0x0fu8; Self::NBYTES], nbytes_cur: Self::NBYTES }
+        Self { buf: [0x0fu8; Self::NBYTES] }
     }
 
-    fn clear(&mut self) {
-        self.nbytes_cur = 0;
+    fn is_const(&self) -> bool {
+        false
     }
 
-    fn is_complete(&self) -> bool {
-        self.nbytes_cur == self.buf.len()
-    }
-
-    fn push(&mut self, byte: u8) {
-        if self.nbytes_cur < self.buf.len() {
-            self.buf[self.nbytes_cur] = byte;
-            self.nbytes_cur += 1;
-        }
+    fn put_byte(&mut self, ibyte: usize, byte: u8) {
+        self.buf[ibyte] = byte;
     }
 
     fn clone_from(&mut self, other: &Self) {
         self.buf = other.buf;
-        self.nbytes_cur = other.nbytes_cur;
     }
 
     fn get_bytes(&self) -> &[u8] {
@@ -116,38 +106,30 @@ impl CharAttr for CharAttr16Colors {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct CharAttr256Colors {
     buf: [u8; Self::NBYTES],
-    nbytes_cur: usize,
 }
 
 impl CharAttr for CharAttr256Colors {
     const NBYTES: usize = 2;
+    const INVALID: Self = Self { buf: [0x00u8; Self::NBYTES] };
 
     fn new() -> Self {
-        Self { buf: [0x0fu8; Self::NBYTES], nbytes_cur: 0 }
+        Self { buf: [0x0fu8; Self::NBYTES] }
     }
 
     fn default() -> Self {
-        Self { buf: [0x0fu8; Self::NBYTES], nbytes_cur: Self::NBYTES }
+        Self { buf: [0x0fu8; Self::NBYTES] }
     }
 
-    fn clear(&mut self) {
-        self.nbytes_cur = 0;
+    fn is_const(&self) -> bool {
+        false
     }
 
-    fn is_complete(&self) -> bool {
-        self.nbytes_cur == self.buf.len()
-    }
-
-    fn push(&mut self, byte: u8) {
-        if self.nbytes_cur < self.buf.len() {
-            self.buf[self.nbytes_cur] = byte;
-            self.nbytes_cur += 1;
-        }
+    fn put_byte(&mut self, ibyte: usize, byte: u8) {
+        self.buf[ibyte] = byte;
     }
 
     fn clone_from(&mut self, other: &Self) {
         self.buf = other.buf;
-        self.nbytes_cur = other.nbytes_cur;
     }
 
     fn get_bytes(&self) -> &[u8] {
