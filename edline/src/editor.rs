@@ -15,8 +15,8 @@ use crate::utf8_accumulator::Utf8Accumulator;
 use crate::console_output::Config as ConsoleConfig;
 use crate::graphics_output::Config as GraphicsConfig;
 pub use crate::char_attr::{
-    CharAttrConstColor,
-    CharAttrConstColorDeco,
+    CharAttrMonoColor,
+    CharAttrMonoColorDeco,
     CharAttr16Colors,
     CharAttr16ColorsDeco,
     CharAttr256Colors,
@@ -423,7 +423,8 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         if ibyte < self.ibyte_end {
             line_buf.copy_within(ibyte..self.ibyte_end, ibyte + bytes_insert.len());
         }
-        line_buf[ibyte..ibyte + CharAttr::NBYTES].fill(0xff);
+        let char_attr = CharAttr::new();
+        line_buf[ibyte..ibyte + CharAttr::NBYTES].copy_from_slice(&char_attr.get_bytes());
         line_buf[ibyte + CharAttr::NBYTES..ibyte + CharAttr::NBYTES + bytes_insert.len()].copy_from_slice(bytes_insert);
         self.ibyte_end += CharAttr::NBYTES + bytes_insert.len();
         CharAttr::NBYTES + bytes_insert.len()
@@ -491,7 +492,7 @@ where
     }
 }
 
-impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttrConstColor>, CharAttrConstColor>
+impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttrMonoColor>, CharAttrMonoColor>
 where
     Writer: io_async::Write
 {
@@ -500,7 +501,7 @@ where
     }
 }
 
-impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttrConstColorDeco>, CharAttrConstColorDeco>
+impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttrMonoColorDeco>, CharAttrMonoColorDeco>
 where
     Writer: io_async::Write
 {
@@ -562,7 +563,7 @@ where
 }
 
 impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType>
-    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttrConstColor>, CharAttrConstColor>
+    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttrMonoColor>, CharAttrMonoColor>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     DelayNs: hal_async::delay::DelayNs,
@@ -577,7 +578,7 @@ where
 }
 
 impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType>
-    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttrConstColorDeco>, CharAttrConstColorDeco>
+    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttrMonoColorDeco>, CharAttrMonoColorDeco>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     DelayNs: hal_async::delay::DelayNs,
