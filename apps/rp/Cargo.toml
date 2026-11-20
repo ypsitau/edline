@@ -1,6 +1,6 @@
 [package]
 edition = "2024"
-name = "rp-uart"
+name = "rp-uart-display"
 version = "0.1.0"
 license = "MIT or Apache-2.0"
 
@@ -11,6 +11,9 @@ license = "MIT or Apache-2.0"
 regex = { version = "1.11.0" }
 
 [dependencies]
+edline = { path = "../../edline" }
+serkey = { version = "0.3.1" }
+
 defmt = { version = "1" }
 defmt-rtt = { version = "1" }
 fixed = { version = "1.29.0" }
@@ -31,8 +34,13 @@ embedded-io-async = { version = "0.7" }
 
 cortex-m-rt = { version = "0.7" }
 
-edline = { path = "../../edline" }
-serkey = { version = "0.3.1" }
+embedded-graphics = { version = "0.8.2" }
+embedded-graphics-framebuf = { version = "0.5.0" }
+mipidsi = { version = "0.10.0" }
+ssd1306 = { version = "0.10.0" }
+
+embassy-usb = { version = "0.6.0", features = ["defmt"] }
+embassy-usb-driver = { version = "0.2.2", features = ["defmt"] }
 
 [target.'cfg( target_arch = "arm" )'.dependencies]
 panic-probe = { version = "1", features = ["print-defmt"] }
