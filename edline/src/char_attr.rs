@@ -15,7 +15,7 @@ const DECO_STRIKETHROUGH: u8    = 1 << 3;
 //-----------------------------------------------------------------------------
 // CharAttr
 //-----------------------------------------------------------------------------
-pub trait CharAttr: PartialEq {
+pub trait CharAttr: PartialEq + Sized {
     const NBYTES: usize;
     const INVALID: Self;
 
@@ -39,15 +39,15 @@ pub trait CharAttr: PartialEq {
 
     fn get_color_bg(&self) -> Color;
 
-    fn set_color(&mut self, fg: Color, bg: Color);
+    fn set_color(self, fg: Color, bg: Color) -> Self;
 
-    fn set_color_fg(&mut self, fg: Color);
+    fn set_color_fg(self, fg: Color) -> Self;
 
-    fn set_color_bg(&mut self, bg: Color);
+    fn set_color_bg(self, bg: Color) -> Self;
 
     fn get_deco(&self) -> u8;
 
-    fn set_deco(&mut self, _deco: u8);
+    fn set_deco(self, _deco: u8) -> Self;
 
     fn is_bold(&self) -> bool { self.get_deco() & DECO_BOLD != 0 }
 
@@ -57,21 +57,45 @@ pub trait CharAttr: PartialEq {
 
     fn is_strikethrough(&self) -> bool { self.get_deco() & DECO_STRIKETHROUGH != 0 }
 
-    fn set_bold(&mut self) { self.set_deco(self.get_deco() | DECO_BOLD); }
+    fn set_bold(self) -> Self {
+        let deco = self.get_deco() | DECO_BOLD;
+        self.set_deco(deco)
+    }
 
-    fn clear_bold(&mut self) { self.set_deco(self.get_deco() & !DECO_BOLD); }
+    fn clear_bold(self) -> Self {
+        let deco = self.get_deco() & !DECO_BOLD;
+        self.set_deco(deco)
+    }
 
-    fn set_italic(&mut self) { self.set_deco(self.get_deco() | DECO_ITALIC); }
+    fn set_italic(self) -> Self {
+        let deco = self.get_deco() | DECO_ITALIC;
+        self.set_deco(deco)
+    }
 
-    fn clear_italic(&mut self) { self.set_deco(self.get_deco() & !DECO_ITALIC); }
+    fn clear_italic(self) -> Self {
+        let deco = self.get_deco() & !DECO_ITALIC;
+        self.set_deco(deco)
+    }
 
-    fn set_underlined(&mut self) { self.set_deco(self.get_deco() | DECO_UNDERLINED); }
+    fn set_underlined(self) -> Self {
+        let deco = self.get_deco() | DECO_UNDERLINED;
+        self.set_deco(deco)
+    }
 
-    fn clear_underlined(&mut self) { self.set_deco(self.get_deco() & !DECO_UNDERLINED); }
+    fn clear_underlined(self) -> Self {
+        let deco = self.get_deco() & !DECO_UNDERLINED;
+        self.set_deco(deco)
+    }
 
-    fn set_strikethrough(&mut self) { self.set_deco(self.get_deco() | DECO_STRIKETHROUGH); }
+    fn set_strikethrough(self) -> Self {
+        let deco = self.get_deco() | DECO_STRIKETHROUGH;
+        self.set_deco(deco)
+    }
 
-    fn clear_strikethrough(&mut self) { self.set_deco(self.get_deco() & !DECO_STRIKETHROUGH); }
+    fn clear_strikethrough(self) -> Self {
+        let deco = self.get_deco() & !DECO_STRIKETHROUGH;
+        self.set_deco(deco)
+    }
 
     fn is_changed_color_fg(&self, other: &Self) -> bool { self.get_color_fg() != other.get_color_fg() }
 
@@ -140,15 +164,15 @@ impl CharAttr for CharAttrMonoColor {
 
     fn get_color_bg(&self) -> Color { Color::WHITE }
 
-    fn set_color(&mut self, _fg: Color, _bg: Color) {}
+    fn set_color(self, _fg: Color, _bg: Color) -> Self { self }
 
-    fn set_color_fg(&mut self, _fg: Color) {}
+    fn set_color_fg(self, _fg: Color) -> Self { self }
 
-    fn set_color_bg(&mut self, _bg: Color) {}
+    fn set_color_bg(self, _bg: Color) -> Self { self }
 
     fn get_deco(&self) -> u8 { DECO_DEFAULT }
 
-    fn set_deco(&mut self, _deco: u8) {}
+    fn set_deco(self, _deco: u8) -> Self { self }
 }
 
 impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttrMonoColor>, CharAttrMonoColor>
@@ -205,15 +229,18 @@ impl CharAttr for CharAttrMonoColorDeco {
 
     fn get_color_bg(&self) -> Color { Color::WHITE }
 
-    fn set_color(&mut self, _fg: Color, _bg: Color) {}
+    fn set_color(self, _fg: Color, _bg: Color) -> Self { self }
 
-    fn set_color_fg(&mut self, _fg: Color) {}
+    fn set_color_fg(self, _fg: Color) -> Self { self }
 
-    fn set_color_bg(&mut self, _bg: Color) {}
+    fn set_color_bg(self, _bg: Color) -> Self { self }
 
     fn get_deco(&self) -> u8 { self.buf[0] }
 
-    fn set_deco(&mut self, deco: u8) { self.buf[0] = deco; }
+    fn set_deco(mut self, deco: u8) -> Self {
+        self.buf[0] = deco;
+        self
+    }
 }
 
 impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttrMonoColorDeco>, CharAttrMonoColorDeco>
@@ -279,23 +306,26 @@ impl CharAttr for CharAttr16Colors {
 
     fn get_color_bg(&self) -> Color { Color::from_code((self.buf[0] >> 4) & 0x0f) }
 
-    fn set_color(&mut self, fg: Color, bg: Color) {
+    fn set_color(mut self, fg: Color, bg: Color) -> Self {
         let code = (bg.get_code() << 4) | (fg.get_code() & 0x0f);
         // CharAttr is not allowed to contain the code 0x00.
         if code != 0x00 { self.buf[0] = code; }
+        self
     }
 
-    fn set_color_fg(&mut self, fg: Color) {
-        self.set_color(fg, self.get_color_bg());
+    fn set_color_fg(self, fg: Color) -> Self {
+        let bg = self.get_color_bg();
+        self.set_color(fg, bg)
     }
 
-    fn set_color_bg(&mut self, bg: Color) {
-        self.set_color(self.get_color_fg(), bg);
+    fn set_color_bg(self, bg: Color) -> Self {
+        let fg = self.get_color_fg();
+        self.set_color(fg, bg)
     }
 
     fn get_deco(&self) -> u8 { DECO_DEFAULT }
 
-    fn set_deco(&mut self, _deco: u8) {}
+    fn set_deco(self, _deco: u8) -> Self { self }
 }
 
 impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttr16Colors>, CharAttr16Colors>
@@ -357,28 +387,33 @@ impl CharAttr for CharAttr16ColorsDeco {
         &self.buf
     }
 
-
     fn get_color_fg(&self) -> Color { Color::from_code(self.buf[0] & 0x0f) }
 
     fn get_color_bg(&self) -> Color { Color::from_code((self.buf[0] >> 4) & 0x0f) }
 
-    fn set_color(&mut self, fg: Color, bg: Color) {
+    fn set_color(mut self, fg: Color, bg: Color) -> Self {
         let code = (bg.get_code() << 4) | (fg.get_code() & 0x0f);
         // CharAttr is not allowed to contain the code 0x00.
         if code != 0x00 { self.buf[0] = code; }
+        self
     }
 
-    fn set_color_fg(&mut self, fg: Color) {
-        self.set_color(fg, self.get_color_bg());
+    fn set_color_fg(self, fg: Color) -> Self {
+        let bg = self.get_color_bg();
+        self.set_color(fg, bg)
     }
 
-    fn set_color_bg(&mut self, bg: Color) {
-        self.set_color(self.get_color_fg(), bg);
+    fn set_color_bg(self, bg: Color) -> Self {
+        let fg = self.get_color_fg();
+        self.set_color(fg, bg)
     }
 
     fn get_deco(&self) -> u8 { self.buf[1] }
 
-    fn set_deco(&mut self, deco: u8) { self.buf[1] = deco; }
+    fn set_deco(mut self, deco: u8) -> Self {
+        self.buf[1] = deco;
+        self
+    }
 }
 
 impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttr16ColorsDeco>, CharAttr16ColorsDeco>
@@ -444,24 +479,27 @@ impl CharAttr for CharAttr256Colors {
 
     fn get_color_bg(&self) -> Color { Color::from_code(self.buf[1]) }
 
-    fn set_color(&mut self, fg: Color, bg: Color) {
+    fn set_color(mut self, fg: Color, bg: Color) -> Self {
         // Convert standard colors to RGB cube before storing their codes.
         // This avoids storing 0x00 code for standard colors.
         self.buf[0] = fg.standard_to_rgb_cube().get_code();
         self.buf[1] = bg.standard_to_rgb_cube().get_code();
+        self
     }
 
-    fn set_color_fg(&mut self, fg: Color) {
+    fn set_color_fg(mut self, fg: Color) -> Self {
         self.buf[0] = fg.standard_to_rgb_cube().get_code();
+        self
     }
 
-    fn set_color_bg(&mut self, bg: Color) {
-        self.buf[1] = bg.standard_to_rgb_cube().get_code(); 
+    fn set_color_bg(mut self, bg: Color) -> Self {
+        self.buf[1] = bg.standard_to_rgb_cube().get_code();
+        self
     }
 
     fn get_deco(&self) -> u8 { DECO_DEFAULT }
 
-    fn set_deco(&mut self, _deco: u8) {}
+    fn set_deco(self, _deco: u8) -> Self { self }
 }
 
 impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttr256Colors>, CharAttr256Colors>
@@ -527,24 +565,30 @@ impl CharAttr for CharAttr256ColorsDeco {
 
     fn get_color_bg(&self) -> Color { Color::from_code(self.buf[1]) }
 
-    fn set_color(&mut self, fg: Color, bg: Color) {
+    fn set_color(mut self, fg: Color, bg: Color) -> Self {
         // Convert standard colors to RGB cube before storing their codes.
         // This avoids storing 0x00 code for standard colors.
         self.buf[0] = fg.standard_to_rgb_cube().get_code();
         self.buf[1] = bg.standard_to_rgb_cube().get_code();
+        self
     }
 
-    fn set_color_fg(&mut self, fg: Color) {
+    fn set_color_fg(mut self, fg: Color) -> Self {
         self.buf[0] = fg.standard_to_rgb_cube().get_code();
+        self
     }
 
-    fn set_color_bg(&mut self, bg: Color) {
+    fn set_color_bg(mut self, bg: Color) -> Self {
         self.buf[1] = bg.standard_to_rgb_cube().get_code();
+        self
     }
 
     fn get_deco(&self) -> u8 { self.buf[2] }
 
-    fn set_deco(&mut self, deco: u8) { self.buf[2] = deco; }
+    fn set_deco(mut self, deco: u8) -> Self {
+        self.buf[2] = deco;
+        self
+    }
 }
 
 impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttr256ColorsDeco>, CharAttr256ColorsDeco>
@@ -568,5 +612,49 @@ where
         rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
         target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
         Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn setters_return_updated_color_and_decorations() {
+        let attr = CharAttr16ColorsDeco::new()
+            .set_color_fg(Color::RED)
+            .set_color_bg(Color::BLUE)
+            .set_bold()
+            .set_italic()
+            .set_underlined()
+            .set_strikethrough();
+
+        assert!(attr.get_color_fg() == Color::RED);
+        assert!(attr.get_color_bg() == Color::BLUE);
+        assert!(attr.is_bold());
+        assert!(attr.is_italic());
+        assert!(attr.is_underlined());
+        assert!(attr.is_strikethrough());
+
+        let attr = attr
+            .clear_bold()
+            .clear_italic()
+            .clear_underlined()
+            .clear_strikethrough();
+
+        assert!(!attr.is_bold());
+        assert!(!attr.is_italic());
+        assert!(!attr.is_underlined());
+        assert!(!attr.is_strikethrough());
+    }
+
+    #[test]
+    fn unsupported_setters_return_unchanged_attribute() {
+        let attr = CharAttrMonoColor::new()
+            .set_color_fg(Color::RED)
+            .set_color_bg(Color::BLUE)
+            .set_bold();
+
+        assert!(attr == CharAttrMonoColor);
     }
 }

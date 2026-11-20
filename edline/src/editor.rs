@@ -413,8 +413,8 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         if ibyte < self.ibyte_end {
             line_buf.copy_within(ibyte..self.ibyte_end, ibyte + bytes_insert.len());
         }
-        let mut char_attr = CharAttr::new();
-        //char_attr.set_color_fg(Color::RED);
+        let char_attr = CharAttr::new().set_color_fg(crate::color::Color::RED);
+        //let char_attr = char_attr.set_color_fg(crate::color::Color::RED);
         line_buf[ibyte..ibyte + CharAttr::NBYTES].copy_from_slice(&char_attr.get_bytes());
         line_buf[ibyte + CharAttr::NBYTES..ibyte + CharAttr::NBYTES + bytes_insert.len()].copy_from_slice(bytes_insert);
         self.ibyte_end += CharAttr::NBYTES + bytes_insert.len();
@@ -491,7 +491,7 @@ where
     };
     
     let config = ConsoleConfig::default();
-    let editor = Editor::with_console_mono_color(line_buf, history_buf, writer, config);
+    let editor = Editor::with_console_16colors(line_buf, history_buf, writer, config);
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
