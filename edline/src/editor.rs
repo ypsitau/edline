@@ -163,7 +163,7 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
             serkey::Key::CookedCtrl(serkey::Ctrl::H) => {
                 self.commit_completion().await; self.backspace().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::I) => {
-                event = self.request_completition(false).await; }
+                event = self.request_completition_next().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::J) => {
                 self.commit_completion().await; self.enter().await; event = Event::Entered; }
             serkey::Key::CookedCtrl(serkey::Ctrl::K) => {
@@ -198,9 +198,9 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
             serkey::Key::Enter(attr) if attr.is_none() => {
                 self.commit_completion().await; self.enter().await; event = Event::Entered; }
             serkey::Key::Tab(attr) if attr.is_none() => {
-                event = self.request_completition(false).await; }
+                event = self.request_completition_next().await; }
             serkey::Key::Tab(attr) if attr.is_shift() => {
-                event = self.request_completition(true).await; }
+                event = self.request_completition_prev().await; }
             serkey::Key::Delete(attr) if attr.is_none() => {
                 self.commit_completion().await; self.delete_char().await; }
             serkey::Key::Backspace(attr) if attr.is_none() => {
@@ -247,15 +247,23 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         }
     }
 
-    async fn request_completition(&mut self, reverse: bool) -> Event {
+    async fn request_completition_next(&mut self) -> Event {
         if self.ibyte_completion == Self::IBYTE_NONE {
             self.move_cursor_to_line_end().await;
             self.ibyte_completion = self.ibyte_cur;
             Event::ReqCompletionFirst
-        } else if reverse {
-            Event::ReqCompletionPrev
         } else {
             Event::ReqCompletionNext
+        }
+    }
+
+    async fn request_completition_prev(&mut self) -> Event {
+        if self.ibyte_completion == Self::IBYTE_NONE {
+            self.move_cursor_to_line_end().await;
+            self.ibyte_completion = self.ibyte_cur;
+            Event::ReqCompletionFirst
+        } else {
+            Event::ReqCompletionPrev
         }
     }
 
@@ -294,7 +302,7 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         if ibyte_start != ibyte_end {
             let mut skip_push = false;
             let mut offset_seek = RoundBuffer::OFFSET_NONE;
-            if self.history_buf.seek_item_backward(&mut offset_seek) {
+            if self.history_buf.seek_item_prev(&mut offset_seek) {
                 let (first, second) = self.history_buf.get_item(offset_seek).unwrap();
                 skip_push =
                     self.ibyte_end == first.len() + second.len() &&
@@ -312,7 +320,29 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         self.first_of_line = true;
     }
 
+    pub async fn recall_history(&mut self, prev: bool) {
+        let width = self.calc_width(0, self.ibyte_cur);
+        if prev {
+            if !self.history_buf.seek_item_prev(&mut self.offset_history) { return; }
+        } else {
+            if !self.history_buf.seek_item_next(&mut self.offset_history) { return; }
+        }
+        let (first, second) = self.history_buf.get_item(self.offset_history).unwrap();
+        let ibyte_end = first.len() + second.len();
+        let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
+        assert!(ibyte_end <= line_buf.len());
+        line_buf[..first.len()].copy_from_slice(first);
+        line_buf[first.len()..ibyte_end].copy_from_slice(second);
+        self.ibyte_end = ibyte_end;
+        self.ibyte_cur = ibyte_end;
+        self.output.move_cursor_left_n(width).await;
+        self.output.draw(&line_buf[..ibyte_end]).await;
+        self.output.delete_to_line_end().await;
+    }
+
     pub async fn recall_history_prev(&mut self) {
+        self.recall_history(true).await;
+        /*
         let width = self.calc_width(0, self.ibyte_cur);
         if self.history_buf.seek_item_backward(&mut self.offset_history) {
             let (first, second) = self.history_buf.get_item(self.offset_history).unwrap();
@@ -327,9 +357,12 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
             self.output.draw(&line_buf[..ibyte_end]).await;
             self.output.delete_to_line_end().await;
         }
+        */
     }
 
     pub async fn recall_history_next(&mut self) {
+        self.recall_history(false).await;
+        /*
         let width = self.calc_width(0, self.ibyte_cur);
         if self.history_buf.seek_item_forward(&mut self.offset_history) {
             let (first, second) = self.history_buf.get_item(self.offset_history).unwrap();
@@ -344,6 +377,7 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
             self.output.draw(&line_buf[..ibyte_end]).await;
             self.output.delete_to_line_end().await;
         }
+        */
     }
 
     pub async fn fulfill_completion(&mut self, s: &str) {

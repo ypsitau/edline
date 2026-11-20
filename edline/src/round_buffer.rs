@@ -122,7 +122,7 @@ impl<'a> RoundBuffer<'a> {
         Ok(())
     }
 
-    pub fn seek_item_forward(&self, offset_seek: &mut usize) -> bool {
+    pub fn seek_item_next(&self, offset_seek: &mut usize) -> bool {
         if *offset_seek == Self::OFFSET_NONE {
             if self.is_empty() { return false; }
             *offset_seek = self.offset_top;
@@ -141,7 +141,7 @@ impl<'a> RoundBuffer<'a> {
         true
     }
 
-    pub fn seek_item_backward(&self, offset_seek: &mut usize) -> bool {
+    pub fn seek_item_prev(&self, offset_seek: &mut usize) -> bool {
         if *offset_seek == Self::OFFSET_NONE {
             if self.is_empty() { return false; }
             *offset_seek = self.offset_bottom;

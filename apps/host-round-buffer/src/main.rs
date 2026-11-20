@@ -99,7 +99,7 @@ pub fn print_items(round_buf: &edline::RoundBuffer) {
     println!("Items (forward):");
     let mut nitems = 0;
     let mut offset_seek = edline::RoundBuffer::OFFSET_NONE;
-    while round_buf.seek_item_forward(&mut offset_seek) {
+    while round_buf.seek_item_next(&mut offset_seek) {
         let (first, second) = round_buf.get_item(offset_seek).unwrap();
         let (first, second) = (str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
         let item = first.to_string() + second;
@@ -112,7 +112,7 @@ pub fn print_items(round_buf: &edline::RoundBuffer) {
     println!();
     println!("Items (backward):");
     let mut offset_seek = edline::RoundBuffer::OFFSET_NONE;
-    while round_buf.seek_item_backward(&mut offset_seek) {
+    while round_buf.seek_item_prev(&mut offset_seek) {
         let (first, second) = round_buf.get_item(offset_seek).unwrap();
         let (first, second) = (str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
         let item = first.to_string() + second;

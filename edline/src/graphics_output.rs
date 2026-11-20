@@ -157,7 +157,7 @@ where
             .into_styled(eg::primitives::PrimitiveStyle::with_fill(self.config.background_color))
             .draw(&mut self.target).ok();
         i_row -= 1;
-        while i_row >= 0 && self.rollback_buf.seek_item_backward(&mut offset_seek) {
+        while i_row >= 0 && self.rollback_buf.seek_item_prev(&mut offset_seek) {
             let mut i_col = 0;
             utf8_acc.reset();
             let (first, second) = self.rollback_buf.get_item(offset_seek).unwrap();
