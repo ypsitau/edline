@@ -21,19 +21,19 @@ impl Utf8Accumulator {
         if self.idx == 0 {
             self.buf[0] = byte;
             self.idx = 1;
-            if byte & 0x80 == 0x00 {
+            if byte & 0b1000_0000 == 0b0000_0000 {
                 self.idx_end = 1;
                 return true;
-            } else if byte & 0xe0 == 0xc0 {
+            } else if byte & 0b1110_0000 == 0b1100_0000 {
                 self.idx_end = 2;
-            } else if byte & 0xf0 == 0xe0 {
+            } else if byte & 0b1111_0000 == 0b1110_0000 {
                 self.idx_end = 3;
-            } else if byte & 0xf8 == 0xf0 {
+            } else if byte & 0b1111_1000 == 0b1111_0000 {
                 self.idx_end = 4;
             } else {
                 self.reset();
             };
-        } else if byte & 0xc0 == 0x80 {
+        } else if byte & 0b1100_0000 == 0b1000_0000 {
             self.buf[self.idx as usize] = byte;
             self.idx += 1;
             return self.idx == self.idx_end;

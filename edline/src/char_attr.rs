@@ -15,7 +15,7 @@ const DECO_STRIKETHROUGH: u8    = 1 << 3;
 //-----------------------------------------------------------------------------
 // CharAttr
 //-----------------------------------------------------------------------------
-pub trait CharAttr: PartialEq + Sized {
+pub trait CharAttr: Sized + Copy + PartialEq {
     const NBYTES: usize;
     const INVALID: Self;
 
@@ -28,8 +28,6 @@ pub trait CharAttr: PartialEq + Sized {
     fn is_valid(&self) -> bool;
 
     fn put_byte(&mut self, ibyte: usize, byte: u8);
-
-    fn clone_from(&mut self, other: &Self);
 
     fn get_bytes(&self) -> &[u8];
 
@@ -156,8 +154,6 @@ impl CharAttr for CharAttrMonoColor {
 
     fn put_byte(&mut self, _ibyte: usize, _byte: u8) {}
 
-    fn clone_from(&mut self, _other: &Self) {}
-
     fn get_bytes(&self) -> &[u8] { &[] }
 
     fn get_color_fg(&self) -> Color { Color::BLACK }
@@ -220,8 +216,6 @@ impl CharAttr for CharAttrMonoColorDeco {
     fn is_valid(&self) -> bool { true }
 
     fn put_byte(&mut self, _ibyte: usize, _byte: u8) {}
-
-    fn clone_from(&mut self, _other: &Self) {}
 
     fn get_bytes(&self) -> &[u8] { &[] }
 
@@ -292,10 +286,6 @@ impl CharAttr for CharAttr16Colors {
 
     fn put_byte(&mut self, ibyte: usize, byte: u8) {
         self.buf[ibyte] = byte;
-    }
-
-    fn clone_from(&mut self, other: &Self) {
-        self.buf = other.buf;
     }
 
     fn get_bytes(&self) -> &[u8] {
@@ -377,10 +367,6 @@ impl CharAttr for CharAttr16ColorsDeco {
 
     fn put_byte(&mut self, ibyte: usize, byte: u8) {
         self.buf[ibyte] = byte;
-    }
-
-    fn clone_from(&mut self, other: &Self) {
-        self.buf = other.buf;
     }
 
     fn get_bytes(&self) -> &[u8] {
@@ -467,10 +453,6 @@ impl CharAttr for CharAttr256Colors {
         self.buf[ibyte] = byte;
     }
 
-    fn clone_from(&mut self, other: &Self) {
-        self.buf = other.buf;
-    }
-
     fn get_bytes(&self) -> &[u8] {
         &self.buf
     }
@@ -551,10 +533,6 @@ impl CharAttr for CharAttr256ColorsDeco {
 
     fn put_byte(&mut self, ibyte: usize, byte: u8) {
         self.buf[ibyte] = byte;
-    }
-
-    fn clone_from(&mut self, other: &Self) {
-        self.buf = other.buf;
     }
 
     fn get_bytes(&self) -> &[u8] {

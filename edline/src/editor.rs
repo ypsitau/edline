@@ -9,6 +9,8 @@ use embedded_hal_async as hal_async;
 use embedded_keycode as keycode;
 use unicode_width::UnicodeWidthStr;
 use crate::char_attr;
+use crate::char_attr::CharAttr as _;
+use crate::color::Color;
 use crate::utf8_accumulator::Utf8Accumulator;
 use crate::console_output::Config as ConsoleConfig;
 use crate::graphics_output::Config as GraphicsConfig;
@@ -67,7 +69,8 @@ pub struct Editor<'a, OutputT, CharAttr> {
     range_result: (usize, usize),
     first_of_line: bool,
     nbytes_prompt: usize,
-    _phantom: core::marker::PhantomData<CharAttr>,
+    char_attr_insert: CharAttr,
+    char_attr_completion: CharAttr,
 }
 
 impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, CharAttr> {
@@ -86,8 +89,25 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
             range_result: (0, 0),
             first_of_line: true,
             nbytes_prompt: 0,
-            _phantom: core::marker::PhantomData::<CharAttr>,
+            char_attr_insert: CharAttr::new(),
+            char_attr_completion: CharAttr::new(),
         }
+    }
+
+    pub fn get_char_attr_insert(&self) -> CharAttr {
+        self.char_attr_insert
+    }
+
+    pub fn set_char_attr_insert(&mut self, char_attr: CharAttr) {
+        self.char_attr_insert = char_attr;
+    }
+
+    pub fn get_char_attr_completion(&self) -> CharAttr {
+        self.char_attr_completion
+    }
+
+    pub fn set_char_attr_completion(&mut self, char_attr: CharAttr) {
+        self.char_attr_completion = char_attr;
     }
 
     pub fn set_prompt(&mut self, prompt: &str) {
@@ -314,10 +334,9 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
         let mut utf8_acc = Utf8Accumulator::new();
         let mut ibyte_dst = self.ibyte_completion;
-        let char_attr = CharAttr::new();
         for byte in s.as_bytes() {
             if utf8_acc.push(*byte) {
-                line_buf[ibyte_dst..ibyte_dst + CharAttr::NBYTES].copy_from_slice(char_attr.get_bytes());
+                line_buf[ibyte_dst..ibyte_dst + CharAttr::NBYTES].copy_from_slice(self.char_attr_completion.get_bytes());
                 ibyte_dst += CharAttr::NBYTES;
                 let s = utf8_acc.get_result();
                 line_buf[ibyte_dst..ibyte_dst + s.len()].copy_from_slice(s.as_bytes());
@@ -330,6 +349,18 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         self.output.move_cursor_left_n(width).await;
         self.output.write(&line_buf[self.ibyte_completion..ibyte_end]).await;
         self.output.delete_to_line_end().await;
+    }
+
+    fn replace_char_attr(&mut self, ibyte_start: usize, ibyte_end: usize, char_attr: CharAttr) {
+        let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
+        let mut ibyte = ibyte_start;
+        while ibyte < ibyte_end {
+            line_buf[ibyte..ibyte + CharAttr::NBYTES].copy_from_slice(char_attr.get_bytes());
+            ibyte += CharAttr::NBYTES + 1;
+            while ibyte < ibyte_end && line_buf[ibyte] & 0b1100_0000 == 0b1000_0000 {
+                ibyte += 1;
+            }
+        }
     }
 
     pub async fn insert_char(&mut self, c: char) {
@@ -384,7 +415,7 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         if self.ibyte_cur == 0 { return false; }
         let mut ibyte_prev = self.ibyte_cur - 1;
         let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
-        while ibyte_prev > 0 && line_buf[ibyte_prev] & 0xc0 == 0x80 {
+        while ibyte_prev > 0 && line_buf[ibyte_prev] & 0b1100_0000 == 0b1000_0000 {
             ibyte_prev -= 1;
         }
         ibyte_prev -= CharAttr::NBYTES;
@@ -397,7 +428,7 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         if self.ibyte_cur >= self.ibyte_end { return false; }
         let mut ibyte_next = self.ibyte_cur + CharAttr::NBYTES + 1;
         let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
-        while ibyte_next < self.ibyte_end && line_buf[ibyte_next] & 0xc0 == 0x80 {
+        while ibyte_next < self.ibyte_end && line_buf[ibyte_next] & 0b1100_0000 == 0b1000_0000 {
             ibyte_next += 1;
         }
         self.output.move_cursor_right_n(self.calc_width(self.ibyte_cur, ibyte_next)).await;
@@ -407,25 +438,24 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
 
     pub fn insert_char_to_buf(&mut self, ibyte: usize, c: char) -> usize {
         let mut buf_enc = [0u8; 4];
-        let bytes_insert = c.encode_utf8(&mut buf_enc).as_bytes();
+        let bytes_char = c.encode_utf8(&mut buf_enc).as_bytes();
+        let nbytes_insert = CharAttr::NBYTES + bytes_char.len();
         let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
-        if self.ibyte_end + CharAttr::NBYTES + bytes_insert.len() > line_buf.len() { return 0; }
+        if self.ibyte_end + nbytes_insert > line_buf.len() { return 0; }
         if ibyte < self.ibyte_end {
-            line_buf.copy_within(ibyte..self.ibyte_end, ibyte + bytes_insert.len());
+            line_buf.copy_within(ibyte..self.ibyte_end, ibyte + nbytes_insert);
         }
-        let char_attr = CharAttr::new().set_color_fg(crate::color::Color::RED);
-        //let char_attr = char_attr.set_color_fg(crate::color::Color::RED);
-        line_buf[ibyte..ibyte + CharAttr::NBYTES].copy_from_slice(&char_attr.get_bytes());
-        line_buf[ibyte + CharAttr::NBYTES..ibyte + CharAttr::NBYTES + bytes_insert.len()].copy_from_slice(bytes_insert);
-        self.ibyte_end += CharAttr::NBYTES + bytes_insert.len();
-        CharAttr::NBYTES + bytes_insert.len()
+        line_buf[ibyte..ibyte + CharAttr::NBYTES].copy_from_slice(&self.char_attr_insert.get_bytes());
+        line_buf[ibyte + CharAttr::NBYTES..ibyte + nbytes_insert].copy_from_slice(bytes_char);
+        self.ibyte_end += nbytes_insert;
+        nbytes_insert
     }
 
     pub fn delete_char_from_buf(&mut self, ibyte: usize) -> usize {
         if ibyte >= self.ibyte_end { return 0; }
         let mut nbytes_delete = CharAttr::NBYTES + 1;
         let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
-        while ibyte + nbytes_delete < self.ibyte_end && line_buf[ibyte + nbytes_delete] & 0xc0 == 0x80 {
+        while ibyte + nbytes_delete < self.ibyte_end && line_buf[ibyte + nbytes_delete] & 0b1100_0000 == 0b1000_0000 {
             nbytes_delete += 1;
         }
         line_buf.copy_within(ibyte + nbytes_delete..self.ibyte_end, ibyte);
@@ -491,7 +521,8 @@ where
     };
     
     let config = ConsoleConfig::default();
-    let editor = Editor::with_console_16colors(line_buf, history_buf, writer, config);
+    let mut editor = Editor::with_console_16colors_deco(line_buf, history_buf, writer, config);
+    editor.set_char_attr_insert(editor.get_char_attr_insert().set_color_fg(Color::LIGHT_RED));
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
@@ -528,7 +559,7 @@ where
         .text_color(ColorType::from(eg::pixelcolor::Rgb888::new(255, 255, 255)))
         .background_color(ColorType::from(eg::pixelcolor::Rgb888::new(0, 0, 128)))
         .ht_cursor(2);
-    let editor = Editor::with_graphics_mono_color(line_buf, history_buf, rollback_buf, work_buf, target, config, delay, fn_refresh);
+    let mut editor = Editor::with_graphics_mono_color(line_buf, history_buf, rollback_buf, work_buf, target, config, delay, fn_refresh);
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
