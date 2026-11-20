@@ -4,25 +4,14 @@ use embedded_io_async as io_async;
 use heapless::String;
 use static_cell::StaticCell;
 use crate::round_buffer::RoundBuffer;
-use crate::console_output::ConsoleOutput;
-use crate::graphics_output::GraphicsOutput;
 use embedded_graphics as eg;
 use embedded_hal_async as hal_async;
 use embedded_keycode as keycode;
 use unicode_width::UnicodeWidthStr;
 use crate::char_attr;
-use crate::color::Color;
 use crate::utf8_accumulator::Utf8Accumulator;
 use crate::console_output::Config as ConsoleConfig;
 use crate::graphics_output::Config as GraphicsConfig;
-pub use crate::char_attr::{
-    CharAttrMonoColor,
-    CharAttrMonoColorDeco,
-    CharAttr16Colors,
-    CharAttr16ColorsDeco,
-    CharAttr256Colors,
-    CharAttr256ColorsDeco
-};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
@@ -481,176 +470,6 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
             ibyte
         };
         (ibyte_start, ibyte_end)
-    }
-}
-
-impl<'a, Writer, CharAttr> Editor<'a, ConsoleOutput<Writer, CharAttr>, CharAttr>
-where
-    Writer: io_async::Write,
-    CharAttr: char_attr::CharAttr,
-{
-    pub fn with_console(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer, config: ConsoleConfig) -> Self {
-        Self::new(line_buf, history_buf, ConsoleOutput::new(writer, config))
-    }
-}
-
-impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttrMonoColor>, CharAttrMonoColor>
-where
-    Writer: io_async::Write
-{
-    pub fn with_console_mono_color(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer, config: ConsoleConfig) -> Self {
-        Self::new(line_buf, history_buf, ConsoleOutput::new(writer, config))
-    }
-}
-
-impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttrMonoColorDeco>, CharAttrMonoColorDeco>
-where
-    Writer: io_async::Write
-{
-    pub fn with_console_mono_color_deco(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer, config: ConsoleConfig) -> Self {
-        Self::new(line_buf, history_buf, ConsoleOutput::new(writer, config))
-    }
-}
-
-impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttr16Colors>, CharAttr16Colors>
-where
-    Writer: io_async::Write
-{
-    pub fn with_console_16colors(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer, config: ConsoleConfig) -> Self {
-        Self::new(line_buf, history_buf, ConsoleOutput::new(writer, config))
-    }
-}
-
-impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttr16ColorsDeco>, CharAttr16ColorsDeco>
-where
-    Writer: io_async::Write
-{
-    pub fn with_console_16colors_deco(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer, config: ConsoleConfig) -> Self {
-        Self::new(line_buf, history_buf, ConsoleOutput::new(writer, config))
-    }
-}
-
-impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttr256Colors>, CharAttr256Colors>
-where
-    Writer: io_async::Write
-{
-    pub fn with_console_256colors(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer, config: ConsoleConfig) -> Self {
-        Self::new(line_buf, history_buf, ConsoleOutput::new(writer, config))
-    }
-}
-
-impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttr256ColorsDeco>, CharAttr256ColorsDeco>
-where
-    Writer: io_async::Write
-{
-    pub fn with_console_256colors_deco(line_buf: &'a mut [u8], history_buf: &'a mut [u8], writer: Writer, config: ConsoleConfig) -> Self {
-        Self::new(line_buf, history_buf, ConsoleOutput::new(writer, config))
-    }
-}
-
-impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType, CharAttr>
-    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttr>, CharAttr>
-where
-    DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
-    DelayNs: hal_async::delay::DelayNs,
-    FnRefresh: FnMut(&mut DrawTarget),
-    ColorType: From<eg::pixelcolor::Rgb888>,
-    CharAttr: char_attr::CharAttr,
-{
-    pub fn with_graphics(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
-        rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
-        target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
-        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
-    }
-}
-
-impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType>
-    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttrMonoColor>, CharAttrMonoColor>
-where
-    DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
-    DelayNs: hal_async::delay::DelayNs,
-    FnRefresh: FnMut(&mut DrawTarget),
-    ColorType: From<eg::pixelcolor::Rgb888>,
-{
-    pub fn with_graphics_mono_color(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
-        rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
-        target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
-        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
-    }
-}
-
-impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType>
-    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttrMonoColorDeco>, CharAttrMonoColorDeco>
-where
-    DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
-    DelayNs: hal_async::delay::DelayNs,
-    FnRefresh: FnMut(&mut DrawTarget),
-    ColorType: From<eg::pixelcolor::Rgb888>,
-{
-    pub fn with_graphics_mono_color_deco(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
-        rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
-        target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
-        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
-    }
-}
-
-impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType>
-    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttr16Colors>, CharAttr16Colors>
-where
-    DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
-    DelayNs: hal_async::delay::DelayNs,
-    FnRefresh: FnMut(&mut DrawTarget),
-    ColorType: From<eg::pixelcolor::Rgb888>,
-{
-    pub fn with_graphics_16colors(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
-        rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
-        target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
-        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
-    }
-}
-
-impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType>
-    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttr16ColorsDeco>, CharAttr16ColorsDeco>
-where
-    DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
-    DelayNs: hal_async::delay::DelayNs,
-    FnRefresh: FnMut(&mut DrawTarget),
-    ColorType: From<eg::pixelcolor::Rgb888>,
-{
-    pub fn with_graphics_16colors_deco(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
-        rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
-        target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
-        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
-    }
-}
-
-impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType>
-    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttr256Colors>, CharAttr256Colors>
-where
-    DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
-    DelayNs: hal_async::delay::DelayNs,
-    FnRefresh: FnMut(&mut DrawTarget),
-    ColorType: From<eg::pixelcolor::Rgb888>,
-{
-    pub fn with_graphics_256colors(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
-        rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
-        target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
-        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
-    }
-}
-
-impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType>
-    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttr256ColorsDeco>, CharAttr256ColorsDeco>
-where
-    DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
-    DelayNs: hal_async::delay::DelayNs,
-    FnRefresh: FnMut(&mut DrawTarget),
-    ColorType: From<eg::pixelcolor::Rgb888>,
-{
-    pub fn with_graphics_256colors_deco(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
-        rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
-        target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
-        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
     }
 }
 
