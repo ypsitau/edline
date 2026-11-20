@@ -28,7 +28,7 @@ pub trait Output {
     type Error;
 
     fn init(&mut self) -> impl Future<Output = ()>;
-    fn write(&mut self, data: &[u8]) -> impl Future<Output = ()>;
+    fn draw(&mut self, data: &[u8]) -> impl Future<Output = ()>;
     fn print(&mut self, s: &str) -> impl Future<Output = ()>;
     fn new_line(&mut self, line_buf_combined: &[u8]) -> impl Future<Output = ()>; 
     fn move_cursor_left_n(&mut self, n: usize) -> impl Future<Output = ()>;
@@ -47,7 +47,7 @@ impl Output for DummyOutput {
     type Error = ();
 
     async fn init(&mut self) {}
-    async fn write(&mut self, _data: &[u8]) {}
+    async fn draw(&mut self, _data: &[u8]) {}
     async fn print(&mut self, _s: &str) {}
     async fn new_line(&mut self, _line_buf_combined: &[u8]) {}
     async fn move_cursor_left_n(&mut self, _n: usize) {}
@@ -90,7 +90,7 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
             first_of_line: true,
             nbytes_prompt: 0,
             char_attr_insert: CharAttr::new(),
-            char_attr_completion: CharAttr::new(),
+            char_attr_completion: CharAttr::new().set_underlined(),
         }
     }
 
@@ -146,58 +146,80 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         //println!("Received key: {:?}", key);
         let mut event = Event::None;
         let mut history_operation = false;
-        let mut quit_completion = true;
         self.range_result = (0, 0);
         match key {
-            serkey::Key::CookedChar(c) => { self.insert_char(c).await; }
-            serkey::Key::CookedCtrl(serkey::Ctrl::A) => { self.move_cursor_to_line_start().await; }
-            serkey::Key::CookedCtrl(serkey::Ctrl::B) => { self.move_cursor_left().await; }
-            serkey::Key::CookedCtrl(serkey::Ctrl::D) => { self.delete_char().await; }
-            serkey::Key::CookedCtrl(serkey::Ctrl::E) => { self.move_cursor_to_line_end().await; }
-            serkey::Key::CookedCtrl(serkey::Ctrl::F) => { self.move_cursor_right().await; }
-            serkey::Key::CookedCtrl(serkey::Ctrl::H) => { self.backspace().await; }
+            serkey::Key::CookedChar(c) => {
+                self.commit_completion().await; self.insert_char(c).await; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::A) => {
+                self.commit_completion().await; self.move_cursor_to_line_start().await; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::B) => {
+                self.commit_completion().await; self.move_cursor_left().await; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::D) => {
+                self.commit_completion().await; self.delete_char().await; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::E) => {
+                self.commit_completion().await; self.move_cursor_to_line_end().await; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::F) => {
+                self.commit_completion().await; self.move_cursor_right().await; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::H) => {
+                self.commit_completion().await; self.backspace().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::I) => {
-                event = self.request_completition(false).await; quit_completion = false; }
-            serkey::Key::CookedCtrl(serkey::Ctrl::J) => { self.enter().await; event = Event::Entered; }
-            serkey::Key::CookedCtrl(serkey::Ctrl::K) => { self.delete_to_line_end().await; }
+                event = self.request_completition(false).await; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::J) => {
+                self.commit_completion().await; self.enter().await; event = Event::Entered; }
+            serkey::Key::CookedCtrl(serkey::Ctrl::K) => {
+                self.commit_completion().await; self.delete_to_line_end().await; }
             serkey::Key::CookedCtrl(serkey::Ctrl::N) => {
-                self.recall_history_next().await; history_operation = true; }
+                self.cancel_completion_quick(); self.recall_history_next().await; history_operation = true; }
             serkey::Key::CookedCtrl(serkey::Ctrl::P) => {
-                self.recall_history_prev().await; history_operation = true; }
+                self.cancel_completion_quick(); self.recall_history_prev().await; history_operation = true; }
             serkey::Key::TextAreaSizeReport(n_cols, n_rows) => {
                 self.output.update_text_area_size(n_cols as usize, n_rows as usize).await;
             }
-            serkey::Key::A(attr) if attr.is_ctrl() => { self.move_cursor_to_line_start().await; }
-            serkey::Key::B(attr) if attr.is_ctrl() => { self.move_cursor_left().await; }
-            serkey::Key::D(attr) if attr.is_ctrl() => { self.delete_char().await; }
-            serkey::Key::E(attr) if attr.is_ctrl() => { self.move_cursor_to_line_end().await; }
-            serkey::Key::F(attr) if attr.is_ctrl() => { self.move_cursor_right().await; }
-            serkey::Key::H(attr) if attr.is_ctrl() => { self.backspace().await; }
-            serkey::Key::J(attr) if attr.is_ctrl() => { self.enter().await; event = Event::Entered; }
-            serkey::Key::K(attr) if attr.is_ctrl() => { self.delete_to_line_end().await; }
+            serkey::Key::A(attr) if attr.is_ctrl() => {
+                self.commit_completion().await; self.move_cursor_to_line_start().await; }
+            serkey::Key::B(attr) if attr.is_ctrl() => {
+                self.commit_completion().await; self.move_cursor_left().await; }
+            serkey::Key::D(attr) if attr.is_ctrl() => {
+                self.commit_completion().await; self.delete_char().await; }
+            serkey::Key::E(attr) if attr.is_ctrl() => {
+                self.commit_completion().await; self.move_cursor_to_line_end().await; }
+            serkey::Key::F(attr) if attr.is_ctrl() => {
+                self.commit_completion().await; self.move_cursor_right().await; }
+            serkey::Key::H(attr) if attr.is_ctrl() => {
+                self.commit_completion().await; self.backspace().await; }
+            serkey::Key::J(attr) if attr.is_ctrl() => {
+                self.commit_completion().await; self.enter().await; event = Event::Entered; }
+            serkey::Key::K(attr) if attr.is_ctrl() => {
+                self.commit_completion().await; self.delete_to_line_end().await; }
             serkey::Key::N(attr) if attr.is_ctrl() => {
-                self.recall_history_next().await; history_operation = true; }
+                self.cancel_completion_quick(); self.recall_history_next().await; history_operation = true; }
             serkey::Key::P(attr) if attr.is_ctrl() => {
-                self.recall_history_prev().await; history_operation = true; }
-            serkey::Key::Enter(attr) if attr.is_none() => { self.enter().await; event = Event::Entered; }
+                self.cancel_completion_quick(); self.recall_history_prev().await; history_operation = true; }
+            serkey::Key::Enter(attr) if attr.is_none() => {
+                self.commit_completion().await; self.enter().await; event = Event::Entered; }
             serkey::Key::Tab(attr) if attr.is_none() => {
-                event = self.request_completition(false).await; quit_completion = false; }
+                event = self.request_completition(false).await; }
             serkey::Key::Tab(attr) if attr.is_shift() => {
-                event = self.request_completition(true).await; quit_completion = false; }
-            serkey::Key::Delete(attr) if attr.is_none() => { self.delete_char().await; }
-            serkey::Key::Backspace(attr) if attr.is_none() => { self.backspace().await; }
+                event = self.request_completition(true).await; }
+            serkey::Key::Delete(attr) if attr.is_none() => {
+                self.commit_completion().await; self.delete_char().await; }
+            serkey::Key::Backspace(attr) if attr.is_none() => {
+                self.commit_completion().await; self.backspace().await; }
             serkey::Key::Up(attr) if attr.is_none() => {
-                self.recall_history_prev().await; history_operation = true; }
+                self.cancel_completion_quick(); self.recall_history_prev().await; history_operation = true; }
             serkey::Key::Down(attr) if attr.is_none() => {
-                self.recall_history_next().await; history_operation = true; }
-            serkey::Key::Left(attr) if attr.is_none() => { self.move_cursor_left().await; }
-            serkey::Key::Right(attr) if attr.is_none() => { self.move_cursor_right().await; }
-            serkey::Key::Home(attr) if attr.is_none() => { self.move_cursor_to_line_start().await; }
-            serkey::Key::End(attr) if attr.is_none() => { self.move_cursor_to_line_end().await; }
+                self.cancel_completion_quick(); self.recall_history_next().await; history_operation = true; }
+            serkey::Key::Left(attr) if attr.is_none() => {
+                self.commit_completion().await; self.move_cursor_left().await; }
+            serkey::Key::Right(attr) if attr.is_none() => {
+                self.commit_completion().await; self.move_cursor_right().await; }
+            serkey::Key::Home(attr) if attr.is_none() => {
+                self.commit_completion().await; self.move_cursor_to_line_start().await; }
+            serkey::Key::End(attr) if attr.is_none() => {
+                self.commit_completion().await; self.move_cursor_to_line_end().await; }
             _ => {}
         }
         if !history_operation { self.offset_history = RoundBuffer::OFFSET_NONE; }
-        if quit_completion { self.ibyte_completion = Self::IBYTE_NONE; }
         event
     }
 
@@ -207,7 +229,7 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         if self.first_of_line {
             self.first_of_line = false;
             let prompt = &self.line_buf_whole[..self.nbytes_prompt];
-            self.output.write(prompt).await;
+            self.output.draw(prompt).await;
         }
         let mut read = core::pin::pin!(reader.read_key());
         loop {
@@ -302,7 +324,7 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
             self.ibyte_end = ibyte_end;
             self.ibyte_cur = ibyte_end;
             self.output.move_cursor_left_n(width).await;
-            self.output.write(&line_buf[..ibyte_end]).await;
+            self.output.draw(&line_buf[..ibyte_end]).await;
             self.output.delete_to_line_end().await;
         }
     }
@@ -319,7 +341,7 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
             self.ibyte_end = ibyte_end;
             self.ibyte_cur = ibyte_end;
             self.output.move_cursor_left_n(width).await;
-            self.output.write(&line_buf[..ibyte_end]).await;
+            self.output.draw(&line_buf[..ibyte_end]).await;
             self.output.delete_to_line_end().await;
         }
     }
@@ -336,7 +358,8 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         let mut ibyte_dst = self.ibyte_completion;
         for byte in s.as_bytes() {
             if utf8_acc.push(*byte) {
-                line_buf[ibyte_dst..ibyte_dst + CharAttr::NBYTES].copy_from_slice(self.char_attr_completion.get_bytes());
+                line_buf[ibyte_dst..ibyte_dst + CharAttr::NBYTES]
+                    .copy_from_slice(self.char_attr_completion.get_bytes());
                 ibyte_dst += CharAttr::NBYTES;
                 let s = utf8_acc.get_result();
                 line_buf[ibyte_dst..ibyte_dst + s.len()].copy_from_slice(s.as_bytes());
@@ -347,8 +370,34 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         self.ibyte_end = ibyte_end;
         self.ibyte_cur = ibyte_end;
         self.output.move_cursor_left_n(width).await;
-        self.output.write(&line_buf[self.ibyte_completion..ibyte_end]).await;
+        self.output.draw(&line_buf[self.ibyte_completion..ibyte_end]).await;
         self.output.delete_to_line_end().await;
+    }
+
+    pub async fn commit_completion(&mut self) {
+        if self.ibyte_completion == Self::IBYTE_NONE { return; }
+        self.replace_char_attr(self.ibyte_completion, self.ibyte_end, self.char_attr_insert);
+        let width = self.calc_width(self.ibyte_completion, self.ibyte_end);
+        let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
+        self.output.move_cursor_left_n(width).await;
+        self.output.draw(&line_buf[self.ibyte_completion..self.ibyte_end]).await;
+        self.output.delete_to_line_end().await;
+        self.ibyte_completion = Self::IBYTE_NONE;
+    }
+
+    pub async fn cancel_completion(&mut self) {
+        if self.ibyte_completion == Self::IBYTE_NONE { return; }
+        let width = self.calc_width(self.ibyte_completion, self.ibyte_end);
+        self.output.move_cursor_left_n(width).await;
+        self.output.delete_to_line_end().await;
+        self.ibyte_end = self.ibyte_completion;
+        self.ibyte_completion = Self::IBYTE_NONE;
+    }
+
+    pub fn cancel_completion_quick(&mut self) {
+        if self.ibyte_completion == Self::IBYTE_NONE { return; }
+        self.ibyte_end = self.ibyte_completion;
+        self.ibyte_completion = Self::IBYTE_NONE;
     }
 
     fn replace_char_attr(&mut self, ibyte_start: usize, ibyte_end: usize, char_attr: CharAttr) {
@@ -369,7 +418,7 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
         let ibyte_next = self.ibyte_cur + nbytes_inserted;
         if self.ibyte_end < ibyte_next { self.ibyte_end = ibyte_next; }
-        self.output.write(&line_buf[self.ibyte_cur..self.ibyte_end]).await;
+        self.output.draw(&line_buf[self.ibyte_cur..self.ibyte_end]).await;
         if ibyte_next < self.ibyte_end {
             self.output.move_cursor_left_n(self.calc_width(ibyte_next, self.ibyte_end)).await;
         }
@@ -380,7 +429,7 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         if self.ibyte_cur >= self.ibyte_end { return; }
         self.delete_char_from_buf(self.ibyte_cur);
         let line_buf = &self.line_buf_whole[self.nbytes_prompt..];
-        self.output.write(&line_buf[self.ibyte_cur..self.ibyte_end]).await;
+        self.output.draw(&line_buf[self.ibyte_cur..self.ibyte_end]).await;
         self.output.delete_to_line_end().await;
         if self.ibyte_cur < self.ibyte_end {
             self.output.move_cursor_left_n(self.calc_width(self.ibyte_cur, self.ibyte_end)).await;
@@ -521,8 +570,8 @@ where
     };
     
     let config = ConsoleConfig::default();
-    let mut editor = Editor::with_console_16colors_deco(line_buf, history_buf, writer, config);
-    editor.set_char_attr_insert(editor.get_char_attr_insert().set_color_fg(Color::LIGHT_RED));
+    let editor = Editor::with_console_16colors_deco(line_buf, history_buf, writer, config);
+    //editor.set_char_attr_insert(editor.get_char_attr_insert().set_color_fg(Color::LIGHT_RED));
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
