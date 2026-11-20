@@ -342,42 +342,10 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
 
     pub async fn recall_history_prev(&mut self) {
         self.recall_history(true).await;
-        /*
-        let width = self.calc_width(0, self.ibyte_cur);
-        if self.history_buf.seek_item_backward(&mut self.offset_history) {
-            let (first, second) = self.history_buf.get_item(self.offset_history).unwrap();
-            let ibyte_end = first.len() + second.len();
-            let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
-            assert!(ibyte_end <= line_buf.len());
-            line_buf[..first.len()].copy_from_slice(first);
-            line_buf[first.len()..ibyte_end].copy_from_slice(second);
-            self.ibyte_end = ibyte_end;
-            self.ibyte_cur = ibyte_end;
-            self.output.move_cursor_left_n(width).await;
-            self.output.draw(&line_buf[..ibyte_end]).await;
-            self.output.delete_to_line_end().await;
-        }
-        */
     }
 
     pub async fn recall_history_next(&mut self) {
         self.recall_history(false).await;
-        /*
-        let width = self.calc_width(0, self.ibyte_cur);
-        if self.history_buf.seek_item_forward(&mut self.offset_history) {
-            let (first, second) = self.history_buf.get_item(self.offset_history).unwrap();
-            let ibyte_end = first.len() + second.len();
-            let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
-            assert!(ibyte_end <= line_buf.len());
-            line_buf[..first.len()].copy_from_slice(first);
-            line_buf[first.len()..ibyte_end].copy_from_slice(second);
-            self.ibyte_end = ibyte_end;
-            self.ibyte_cur = ibyte_end;
-            self.output.move_cursor_left_n(width).await;
-            self.output.draw(&line_buf[..ibyte_end]).await;
-            self.output.delete_to_line_end().await;
-        }
-        */
     }
 
     pub async fn fulfill_completion(&mut self, s: &str) {
