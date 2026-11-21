@@ -75,14 +75,14 @@ impl<'a> RoundBuffer<'a> {
         if src.len() + 1 > self.capacity() { return Err(()); }
         if self.n_items == 0 { self.offset_top = self.offset_write; }
         self.offset_bottom = self.offset_write;
-        let offset_terminator = self.append(src);
-        self.buf[offset_terminator] = 0x00;
+        self.append(src, true);
         self.n_items += 1;
         Ok(())
     }
 
-    fn append(&mut self, src: &[u8]) -> usize {
-        let mut offset_write_end = self.offset_write + src.len() + 1;
+    fn append(&mut self, src: &[u8], set_terminator: bool) {
+        let mut offset_write_end = self.offset_write + src.len();
+        if set_terminator { offset_write_end += 1; }
         if offset_write_end <= self.buf.len() {
             if self.buf_full {
                 while self.offset_write <= self.offset_top && self.offset_top < offset_write_end && self.n_items > 0 {
@@ -103,7 +103,8 @@ impl<'a> RoundBuffer<'a> {
             self.buf_full = true;
             let nbytes_copy = self.buf.len() - self.offset_write;
             let nbytes_rest = src.len() - nbytes_copy;
-            offset_write_end = nbytes_rest + 1;
+            offset_write_end = nbytes_rest;
+            if set_terminator { offset_write_end += 1; }
             while (self.offset_top < offset_write_end || self.offset_write <= self.offset_top) && self.n_items > 0 {
                 let mut idx = self.offset_top;
                 while self.buf[idx] != 0x00 {
@@ -119,7 +120,7 @@ impl<'a> RoundBuffer<'a> {
             self.buf[0..nbytes_rest].copy_from_slice(&src[nbytes_copy..]);
             self.offset_write = offset_write_end;
         }
-        offset_write_end - 1
+        if set_terminator { self.buf[offset_write_end - 1] = 0x00; }
     }
 
     pub fn seek_item_next(&self, offset_seek: &mut usize) -> bool {
