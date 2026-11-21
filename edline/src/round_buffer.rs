@@ -75,6 +75,13 @@ impl<'a> RoundBuffer<'a> {
         if src.len() + 1 > self.capacity() { return Err(()); }
         if self.n_items == 0 { self.offset_top = self.offset_write; }
         self.offset_bottom = self.offset_write;
+        let offset_terminator = self.append(src);
+        self.buf[offset_terminator] = 0x00;
+        self.n_items += 1;
+        Ok(())
+    }
+
+    fn append(&mut self, src: &[u8]) -> usize {
         let mut offset_write_end = self.offset_write + src.len() + 1;
         if offset_write_end <= self.buf.len() {
             if self.buf_full {
@@ -112,9 +119,7 @@ impl<'a> RoundBuffer<'a> {
             self.buf[0..nbytes_rest].copy_from_slice(&src[nbytes_copy..]);
             self.offset_write = offset_write_end;
         }
-        self.buf[offset_write_end - 1] = 0x00;
-        self.n_items += 1;
-        Ok(())
+        offset_write_end - 1
     }
 
     pub fn seek_item_next(&self, offset_seek: &mut usize) -> bool {
