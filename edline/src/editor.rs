@@ -9,7 +9,7 @@ use embedded_hal_async as hal_async;
 use embedded_keycode as keycode;
 use unicode_width::UnicodeWidthStr;
 use crate::char_attr;
-use crate::char_attr::CharAttr as _;
+    use crate::char_attr::CharAttr as _;
 use crate::color::Color;
 use crate::utf8_accumulator::Utf8Accumulator;
 use crate::console_output::Config as ConsoleConfig;
@@ -320,13 +320,18 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         self.first_of_line = true;
     }
 
-    pub async fn recall_history(&mut self, prev: bool) {
+    pub async fn recall_history_prev(&mut self) {
+        if !self.history_buf.seek_item_prev(&mut self.offset_history) { return; }
+        self.recall_history().await;
+    }
+
+    pub async fn recall_history_next(&mut self) {
+        if !self.history_buf.seek_item_next(&mut self.offset_history) { return; }
+        self.recall_history().await;
+    }
+
+    pub async fn recall_history(&mut self) {
         let width = self.calc_width(0, self.ibyte_cur);
-        if prev {
-            if !self.history_buf.seek_item_prev(&mut self.offset_history) { return; }
-        } else {
-            if !self.history_buf.seek_item_next(&mut self.offset_history) { return; }
-        }
         let (first, second) = self.history_buf.get_item(self.offset_history).unwrap();
         let ibyte_end = first.len() + second.len();
         let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
@@ -338,14 +343,6 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         self.output.move_cursor_left_n(width).await;
         self.output.draw(&line_buf[..ibyte_end]).await;
         self.output.delete_to_line_end().await;
-    }
-
-    pub async fn recall_history_prev(&mut self) {
-        self.recall_history(true).await;
-    }
-
-    pub async fn recall_history_next(&mut self) {
-        self.recall_history(false).await;
     }
 
     pub async fn fulfill_completion(&mut self, s: &str) {
