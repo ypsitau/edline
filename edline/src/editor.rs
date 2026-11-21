@@ -9,8 +9,6 @@ use embedded_hal_async as hal_async;
 use embedded_keycode as keycode;
 use unicode_width::UnicodeWidthStr;
 use crate::char_attr;
-    use crate::char_attr::CharAttr as _;
-use crate::color::Color;
 use crate::utf8_accumulator::Utf8Accumulator;
 use crate::console_output::Config as ConsoleConfig;
 use crate::graphics_output::Config as GraphicsConfig;
@@ -300,16 +298,9 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         let (ibyte_start, ibyte_end) = Self::strip(&line_buf[..self.ibyte_end]);
         let line_buf_stripped = &line_buf[ibyte_start..ibyte_end];
         if ibyte_start != ibyte_end {
-            let mut skip_push = false;
-            let mut offset_seek = RoundBuffer::OFFSET_NONE;
-            if self.history_buf.seek_item_prev(&mut offset_seek) {
-                let (first, second) = self.history_buf.get_item(offset_seek).unwrap();
-                skip_push =
-                    self.ibyte_end == first.len() + second.len() &&
-                    line_buf_stripped[..first.len()].cmp(first) == core::cmp::Ordering::Equal &&
-                    line_buf_stripped[first.len()..self.ibyte_end].cmp(second) == core::cmp::Ordering::Equal;
-            }
-            if !skip_push {
+            let mut offset_item = RoundBuffer::OFFSET_NONE;
+            if !(self.history_buf.seek_item_prev(&mut offset_item) &&
+                    self.history_buf.is_item_equal(offset_item, line_buf_stripped)) {
                 self.history_buf.push(&line_buf_stripped).unwrap();
             }
         }
@@ -332,16 +323,12 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
 
     pub async fn recall_history(&mut self) {
         let width = self.calc_width(0, self.ibyte_cur);
-        let (first, second) = self.history_buf.get_item(self.offset_history).unwrap();
-        let ibyte_end = first.len() + second.len();
         let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
-        assert!(ibyte_end <= line_buf.len());
-        line_buf[..first.len()].copy_from_slice(first);
-        line_buf[first.len()..ibyte_end].copy_from_slice(second);
-        self.ibyte_end = ibyte_end;
-        self.ibyte_cur = ibyte_end;
+        let nbytes = self.history_buf.read_item(self.offset_history, line_buf);
+        self.ibyte_end = nbytes;
+        self.ibyte_cur = nbytes;
         self.output.move_cursor_left_n(width).await;
-        self.output.draw(&line_buf[..ibyte_end]).await;
+        self.output.draw(&line_buf[..nbytes]).await;
         self.output.delete_to_line_end().await;
     }
 
@@ -570,7 +557,6 @@ where
     
     let config = ConsoleConfig::default();
     let editor = Editor::with_console_16colors_deco(line_buf, history_buf, writer, config);
-    //editor.set_char_attr_insert(editor.get_char_attr_insert().set_color_fg(Color::LIGHT_RED));
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
@@ -607,7 +593,7 @@ where
         .text_color(ColorType::from(eg::pixelcolor::Rgb888::new(255, 255, 255)))
         .background_color(ColorType::from(eg::pixelcolor::Rgb888::new(0, 0, 128)))
         .ht_cursor(2);
-    let mut editor = Editor::with_graphics_mono_color(line_buf, history_buf, rollback_buf, work_buf, target, config, delay, fn_refresh);
+    let editor = Editor::with_graphics_mono_color(line_buf, history_buf, rollback_buf, work_buf, target, config, delay, fn_refresh);
     simple_task_common(editor, key_reader, enable_break).await;
 }
 

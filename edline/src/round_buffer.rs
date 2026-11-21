@@ -183,4 +183,25 @@ impl<'a> RoundBuffer<'a> {
             Some((&self.buf[offset_item..offset_end], &self.buf[0..0]))
         }
     }
+
+    pub fn is_item_equal(&self, offset_item: usize, buf: &[u8]) -> bool {
+        if let Some((first, second)) = self.get_item(offset_item) {
+            first.len() + second.len() == buf.len() &&
+            &buf[..first.len()] == first && &buf[first.len()..] == second
+        } else {
+            false
+        }
+    }
+
+    pub fn read_item(&self, offset_item: usize, buf: &mut [u8]) -> usize {
+        if let Some((first, second)) = self.get_item(offset_item) {
+            let ibyte_end = first.len() + second.len();
+            assert!(ibyte_end <= buf.len());
+            buf[..first.len()].copy_from_slice(first);
+            buf[first.len()..ibyte_end].copy_from_slice(second);
+            ibyte_end
+        } else {
+            0
+        }
+    }
 }
