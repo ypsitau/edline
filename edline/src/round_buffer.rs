@@ -89,10 +89,10 @@ impl<'a> RoundBuffer<'a> {
                 }
             }
             self.buf[self.offset_write..self.offset_write + src.len()].copy_from_slice(src);
-            self.buf[offset_write_end - 1] = 0x00;
             self.offset_bottom = self.offset_write;
             if self.n_items == 0 { self.offset_top = self.offset_write; }
             self.offset_write = offset_write_end;
+            self.buf[offset_write_end - 1] = 0x00;
             self.n_items += 1;
         } else {
             self.buf_full = true;
@@ -112,10 +112,10 @@ impl<'a> RoundBuffer<'a> {
             }
             self.buf[self.offset_write..self.offset_write + nbytes_copy].copy_from_slice(&src[..nbytes_copy]);
             self.buf[0..nbytes_rest].copy_from_slice(&src[nbytes_copy..]);
-            self.buf[nbytes_rest] = 0x00;
             self.offset_bottom = self.offset_write;
             if self.n_items == 0 { self.offset_top = self.offset_write; }
             self.offset_write = offset_write_end;
+            self.buf[nbytes_rest] = 0x00;
             self.n_items += 1;
         }
         if self.offset_write >= self.buf.len() { self.offset_write = 0; }
