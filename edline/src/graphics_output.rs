@@ -61,7 +61,7 @@ pub struct GraphicsOutput<'a, DrawTarget: eg::draw_target::DrawTarget, DelayNs, 
     target: DrawTarget,
     character_style: eg::mono_font::MonoTextStyle<'static, DrawTarget::Color>,
     text_style: eg::text::TextStyle,
-    rollback_buf: RoundBuffer<'a>,
+    rollback_buf: WrappedRoundBuffer<'a>,
     //rollback_wrapper: WrappedRoundBuffer,
     work_buf: &'a mut [u8],
     ibyte_work_buf: usize,
@@ -110,8 +110,7 @@ where
                 .background_color(config.background_color).build(),
             text_style: eg::text::TextStyleBuilder::new()
                 .alignment(eg::text::Alignment::Left).baseline(eg::text::Baseline::Top).build(),
-            rollback_buf: RoundBuffer::new(rollback_buf),
-            //rollback_wrapper: WrappedRoundBuffer::new(n_cols as usize),
+            rollback_buf: WrappedRoundBuffer::new(rollback_buf, n_cols as usize),
             work_buf,
             ibyte_work_buf: 0,
             config,
@@ -286,16 +285,19 @@ where
         for byte in s.as_bytes() {
             if utf8_acc.push(*byte) {
                 let s = utf8_acc.get_result();
-                self.draw(char_attr.get_bytes()).await;
-                self.draw(s.as_bytes()).await;
+                self.rollback_buf.push(char_attr.get_bytes()).unwrap();
+                self.rollback_buf.push(s.as_bytes()).unwrap();
                 utf8_acc.reset();
             }
         }
-        //self.rollback_buf.wrap_push(s.as_bytes(), self.n_cols as usize).unwrap();
+        //self.hide_cursor();
+        //self.i_col = 0;
+        //self.advance_row();
+        //self.show_cursor();
     }
 
     async fn new_line(&mut self, line_buf_combined: &[u8]) {
-        //self.rollback_buf.wrap_push(line_buf_combined, self.n_cols as usize).unwrap();
+        self.rollback_buf.push(line_buf_combined).unwrap();
         self.hide_cursor();
         self.i_col = 0;
         self.advance_row();

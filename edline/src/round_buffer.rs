@@ -207,10 +207,6 @@ impl<'a> WrappedRoundBuffer<'a> {
         }
     }
 
-    pub fn round_buf(&mut self) -> &RoundBuffer<'a> {
-        &self.round_buf
-    }
-
     pub fn push(&mut self, src: &[u8]) -> Result<(), ()> {
         let mut ibyte_start = 0;
         let mut ibyte_end = 0;
@@ -254,5 +250,29 @@ impl<'a> WrappedRoundBuffer<'a> {
             self.round_buf.append(&[], true);
             self.n_cols = 0;
         }
+    }
+
+    pub fn round_buf(&mut self) -> &RoundBuffer<'a> {
+        &self.round_buf
+    }
+
+    pub fn seek_item_next(&self, item_index: &mut RoundBufferItemIndex) -> bool {
+        self.round_buf.seek_item_next(item_index)
+    }
+
+    pub fn seek_item_prev(&self, item_index: &mut RoundBufferItemIndex) -> bool {
+        self.round_buf.seek_item_prev(item_index)
+    }
+
+    pub fn get_item(&self, item_index: RoundBufferItemIndex) -> Option<(&[u8], &[u8])> {
+        self.round_buf.get_item(item_index)
+    }
+
+    pub fn is_item_equal(&self, item_index: RoundBufferItemIndex, buf: &[u8]) -> bool {
+        self.round_buf.is_item_equal(item_index, buf)
+    }
+
+    pub fn read_item(&self, item_index: RoundBufferItemIndex, buf: &mut [u8]) -> usize {
+        self.round_buf.read_item(item_index, buf)
     }
 }
