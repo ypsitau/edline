@@ -3,7 +3,7 @@ use embedded_graphics as eg;
 use embedded_graphics::prelude::*;
 use unicode_width::UnicodeWidthStr;
 use crate::char_attr;
-use crate::round_buffer::RoundBuffer;
+use crate::round_buffer::{RoundBuffer, RoundBufferItemIndex, Wrapper};
 use crate::utf8_accumulator::Utf8Accumulator;
 
 //-----------------------------------------------------------------------------
@@ -62,6 +62,7 @@ pub struct GraphicsOutput<'a, DrawTarget: eg::draw_target::DrawTarget, DelayNs, 
     character_style: eg::mono_font::MonoTextStyle<'static, DrawTarget::Color>,
     text_style: eg::text::TextStyle,
     rollback_buf: RoundBuffer<'a>,
+    rollback_wrapper: Wrapper,
     work_buf: &'a mut [u8],
     ibyte_work_buf: usize,
     config: Config<DrawTarget::Color>,
@@ -110,6 +111,7 @@ where
             text_style: eg::text::TextStyleBuilder::new()
                 .alignment(eg::text::Alignment::Left).baseline(eg::text::Baseline::Top).build(),
             rollback_buf: RoundBuffer::new(rollback_buf),
+            rollback_wrapper: Wrapper::new(n_cols as usize),
             work_buf,
             ibyte_work_buf: 0,
             config,
@@ -146,7 +148,7 @@ where
             return;
         }
         let width = self.target.bounding_box().size.width as i32;
-        let mut offset_seek = RoundBuffer::OFFSET_NONE;
+        let mut item_index = RoundBufferItemIndex::new();
         let mut utf8_acc = Utf8Accumulator::new();
         let mut char_attr = CharAttr::new();
         let mut ibyte_char_attr = 0;
@@ -157,10 +159,10 @@ where
             .into_styled(eg::primitives::PrimitiveStyle::with_fill(self.config.background_color))
             .draw(&mut self.target).ok();
         i_row -= 1;
-        while i_row >= 0 && self.rollback_buf.seek_item_prev(&mut offset_seek) {
+        while i_row >= 0 && self.rollback_buf.seek_item_prev(&mut item_index) {
             let mut i_col = 0;
             utf8_acc.reset();
-            let (first, second) = self.rollback_buf.get_item(offset_seek).unwrap();
+            let (first, second) = self.rollback_buf.get_item(item_index).unwrap();
             //println!("i_row: {} {}{}", i_row,
             //    str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
             let y = self.calc_y(i_row);
@@ -293,7 +295,7 @@ where
     }
 
     async fn new_line(&mut self, line_buf_combined: &[u8]) {
-        self.rollback_buf.wrap_push(line_buf_combined, self.n_cols as usize).unwrap();
+        //self.rollback_buf.wrap_push(line_buf_combined, self.n_cols as usize).unwrap();
         self.hide_cursor();
         self.i_col = 0;
         self.advance_row();

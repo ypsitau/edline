@@ -52,5 +52,5 @@ mod graphics_output;
 mod utf8_accumulator;
 
 pub use editor::*;
-pub use round_buffer::RoundBuffer;
+pub use round_buffer::{RoundBuffer, RoundBufferItemIndex};
 pub use color::Color;

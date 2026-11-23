@@ -3,11 +3,12 @@ use core::future::Future;
 use embedded_io_async as io_async;
 use heapless::String;
 use static_cell::StaticCell;
-use crate::round_buffer::RoundBuffer;
 use embedded_graphics as eg;
 use embedded_hal_async as hal_async;
 use embedded_keycode as keycode;
 use unicode_width::UnicodeWidthStr;
+use crate::round_buffer::RoundBuffer;
+use crate::round_buffer::RoundBufferItemIndex;
 use crate::char_attr;
 use crate::utf8_accumulator::Utf8Accumulator;
 use crate::console_output::Config as ConsoleConfig;
@@ -59,7 +60,7 @@ impl Output for DummyOutput {
 pub struct Editor<'a, OutputT, CharAttr> {
     line_buf_whole: &'a mut [u8],
     history_buf: RoundBuffer<'a>,
-    offset_history: usize,
+    item_index_history: RoundBufferItemIndex,
     output: OutputT,
     ibyte_cur: usize,
     ibyte_end: usize,
@@ -79,7 +80,7 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         Self {
             line_buf_whole,
             history_buf: RoundBuffer::new(history_buf),
-            offset_history: RoundBuffer::OFFSET_NONE,
+            item_index_history: RoundBufferItemIndex::new(),
             output,
             ibyte_cur: 0,
             ibyte_end: 0,
@@ -217,7 +218,7 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
                 self.commit_completion().await; self.move_cursor_to_line_end().await; }
             _ => {}
         }
-        if !history_operation { self.offset_history = RoundBuffer::OFFSET_NONE; }
+        if !history_operation { self.item_index_history = RoundBufferItemIndex::new(); }
         event
     }
 
@@ -298,9 +299,9 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
         let (ibyte_start, ibyte_end) = Self::strip(&line_buf[..self.ibyte_end]);
         let line_buf_stripped = &line_buf[ibyte_start..ibyte_end];
         if ibyte_start != ibyte_end {
-            let mut offset_item = RoundBuffer::OFFSET_NONE;
-            if !(self.history_buf.seek_item_prev(&mut offset_item) &&
-                    self.history_buf.is_item_equal(offset_item, line_buf_stripped)) {
+            let mut item_index = RoundBufferItemIndex::new();
+            if !(self.history_buf.seek_item_prev(&mut item_index) &&
+                    self.history_buf.is_item_equal(item_index, line_buf_stripped)) {
                 self.history_buf.push(&line_buf_stripped).unwrap();
             }
         }
@@ -312,19 +313,19 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
     }
 
     pub async fn recall_history_prev(&mut self) {
-        if !self.history_buf.seek_item_prev(&mut self.offset_history) { return; }
+        if !self.history_buf.seek_item_prev(&mut self.item_index_history) { return; }
         self.recall_history().await;
     }
 
     pub async fn recall_history_next(&mut self) {
-        if !self.history_buf.seek_item_next(&mut self.offset_history) { return; }
+        if !self.history_buf.seek_item_next(&mut self.item_index_history) { return; }
         self.recall_history().await;
     }
 
     pub async fn recall_history(&mut self) {
         let width = self.calc_width(0, self.ibyte_cur);
         let line_buf = &mut self.line_buf_whole[self.nbytes_prompt..];
-        let nbytes = self.history_buf.read_item(self.offset_history, line_buf);
+        let nbytes = self.history_buf.read_item(self.item_index_history, line_buf);
         self.ibyte_end = nbytes;
         self.ibyte_cur = nbytes;
         self.output.move_cursor_left_n(width).await;
