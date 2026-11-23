@@ -128,9 +128,9 @@ where
     CharAttrT: CharAttr,
 {
     pub fn with_graphics(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
-        rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
+        rollback_buf: &'a mut [u8],
         target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
-        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
+        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, config, delay, fn_refresh))
     }
 }
 
@@ -189,9 +189,9 @@ where
     ColorType: From<eg::pixelcolor::Rgb888>,
 {
     pub fn with_graphics_mono_color(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
-        rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
+        rollback_buf: &'a mut [u8],
         target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
-        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
+        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, config, delay, fn_refresh))
     }
 }
 
@@ -255,9 +255,9 @@ where
     ColorType: From<eg::pixelcolor::Rgb888>,
 {
     pub fn with_graphics_mono_color_deco(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
-        rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
+        rollback_buf: &'a mut [u8], 
         target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
-        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
+        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, config, delay, fn_refresh))
     }
 }
 
@@ -336,9 +336,9 @@ where
     ColorType: From<eg::pixelcolor::Rgb888>,
 {
     pub fn with_graphics_16colors(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
-        rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
+        rollback_buf: &'a mut [u8], 
         target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
-        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
+        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, config, delay, fn_refresh))
     }
 }
 
@@ -420,9 +420,9 @@ where
     ColorType: From<eg::pixelcolor::Rgb888>,
 {
     pub fn with_graphics_16colors_deco(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
-        rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
+        rollback_buf: &'a mut [u8], 
         target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
-        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
+        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, config, delay, fn_refresh))
     }
 }
 
@@ -502,9 +502,9 @@ where
     ColorType: From<eg::pixelcolor::Rgb888>,
 {
     pub fn with_graphics_256colors(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
-        rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
+        rollback_buf: &'a mut [u8], 
         target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
-        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
+        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, config, delay, fn_refresh))
     }
 }
 
@@ -587,9 +587,9 @@ where
     ColorType: From<eg::pixelcolor::Rgb888>,
 {
     pub fn with_graphics_256colors_deco(line_buf: &'a mut [u8], history_buf: &'a mut [u8],
-        rollback_buf: &'a mut [u8], work_buf: &'a mut [u8], 
+        rollback_buf: &'a mut [u8],
         target: DrawTarget, config: GraphicsConfig<ColorType>, delay: DelayNs, fn_refresh: FnRefresh) -> Self {
-        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, work_buf, config, delay, fn_refresh))
+        Self::new(line_buf, history_buf, GraphicsOutput::new(target, rollback_buf, config, delay, fn_refresh))
     }
 }
 

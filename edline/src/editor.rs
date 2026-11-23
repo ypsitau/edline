@@ -585,16 +585,12 @@ where
         static STATIC_CELL: StaticCell<[u8; 1024]> = StaticCell::new();
         STATIC_CELL.init([0u8; 1024])
     };
-    let work_buf = {
-        static STATIC_CELL: StaticCell<[u8; 128]> = StaticCell::new();
-        STATIC_CELL.init([0u8; 128])
-    };
     let config = GraphicsConfig::<ColorType>::default()
         .font(&eg::mono_font::ascii::FONT_10X20)
         .text_color(ColorType::from(eg::pixelcolor::Rgb888::new(255, 255, 255)))
         .background_color(ColorType::from(eg::pixelcolor::Rgb888::new(0, 0, 128)))
         .ht_cursor(2);
-    let editor = Editor::with_graphics_mono_color(line_buf, history_buf, rollback_buf, work_buf, target, config, delay, fn_refresh);
+    let editor = Editor::with_graphics_mono_color(line_buf, history_buf, rollback_buf, target, config, delay, fn_refresh);
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
