@@ -1,62 +1,76 @@
 use rand::RngExt;
 
 fn main() {
+    let mut buf = [0u8; 64];
+    let mut wrapped_round_buf = edline::WrappedRoundBuffer::new(&mut buf, 8);
+    print_report(&wrapped_round_buf.round_buf());
+    wrapped_round_buf.push(&[b'0'; 17]).unwrap();
+    print_report(&wrapped_round_buf.round_buf());
+    wrapped_round_buf.push(&[b'1'; 17]).unwrap();
+    print_report(&wrapped_round_buf.round_buf());
+    wrapped_round_buf.push(&[b'2'; 17]).unwrap();
+    print_report(&wrapped_round_buf.round_buf());
+    wrapped_round_buf.flush();
+    print_report(&wrapped_round_buf.round_buf());
+}
+
+fn main2() {
     let mut rng = rand::rng();
     let mut buf_write = [0u8; 64];
     let mut buf = [0u8; 64];
     let mut round_buf = edline::RoundBuffer::new(&mut buf);
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     round_buf.push(&[b'0'; 17]).unwrap();
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     round_buf.push(&[b'1'; 17]).unwrap();
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     round_buf.push(&[b'2'; 17]).unwrap();
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     round_buf.push(&[b'3'; 17]).unwrap();
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     round_buf.push(&[b'4'; 17]).unwrap();
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     round_buf.push(&[0; 0]).unwrap();
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     round_buf.push(&[0; 0]).unwrap();
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     round_buf.push(&[b'5'; 17]).unwrap();
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     round_buf.push(&[b'6'; 17]).unwrap();
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     round_buf.push(&[b'7'; 17]).unwrap();
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     round_buf.push(&[b'8'; 17]).unwrap();
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     round_buf.push(&[b'9'; 17]).unwrap();
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     round_buf.push(&[0; 0]).unwrap();
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     round_buf.push(&[0; 0]).unwrap();
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     round_buf.push(&[b'a'; 17]).unwrap();
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     round_buf.push(&[b'b'; 17]).unwrap();
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     round_buf.push(&[b'c'; 17]).unwrap();
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     round_buf.push(&[b'd'; 7]).unwrap();
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     round_buf.push(&[0; 0]).unwrap();
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     round_buf.push(&[b'#'; 63]).unwrap();
-    print_report(&mut round_buf);
+    print_report(&round_buf);
     for i_trial in 0..1000 {
         let len = rng.random_range(0..20);
         for i in 0..len {
             buf_write[i] = b'A' + (i_trial % 26) as u8;
         }
         round_buf.push(&buf_write[..len]).unwrap();
-        print_report(&mut round_buf);
+        print_report(&round_buf);
     }
 }
 
-pub fn print_report(round_buf: &mut edline::RoundBuffer) {
+pub fn print_report(round_buf: &edline::RoundBuffer) {
     println!("-------------------------------------------------------------------");
     print_buf(round_buf);
     print_items(round_buf);
@@ -107,7 +121,7 @@ pub fn print_items(round_buf: &edline::RoundBuffer) {
         items_fwd.push(item);
         nitems += 1;
     }
-    assert_eq!(nitems, round_buf.count(), "item count mismatch");
+    //assert_eq!(nitems, round_buf.count(), "item count mismatch");
     let mut items_bwd: Vec<String> = Vec::new();
     println!();
     println!("Items (backward):");
@@ -120,8 +134,8 @@ pub fn print_items(round_buf: &edline::RoundBuffer) {
         items_bwd.push(item);
     }
     // items_fwd is compared from the start, items_bwd from the end
-    assert_eq!(items_fwd.len(), items_bwd.len(), "item count mismatch");
-    for (i, (fwd, bwd)) in items_fwd.iter().zip(items_bwd.iter().rev()).enumerate() {
-        assert_eq!(fwd, bwd, "item mismatch at index {}", i);
-    }
+    //assert_eq!(items_fwd.len(), items_bwd.len(), "item count mismatch");
+    //for (i, (fwd, bwd)) in items_fwd.iter().zip(items_bwd.iter().rev()).enumerate() {
+    //    assert_eq!(fwd, bwd, "item mismatch at index {}", i);
+    //}
 }

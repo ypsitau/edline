@@ -3,7 +3,7 @@ use embedded_graphics as eg;
 use embedded_graphics::prelude::*;
 use unicode_width::UnicodeWidthStr;
 use crate::char_attr;
-use crate::round_buffer::{RoundBuffer, RoundBufferItemIndex, Wrapper};
+use crate::round_buffer::{RoundBuffer, RoundBufferItemIndex, WrappedRoundBuffer};
 use crate::utf8_accumulator::Utf8Accumulator;
 
 //-----------------------------------------------------------------------------
@@ -62,7 +62,7 @@ pub struct GraphicsOutput<'a, DrawTarget: eg::draw_target::DrawTarget, DelayNs, 
     character_style: eg::mono_font::MonoTextStyle<'static, DrawTarget::Color>,
     text_style: eg::text::TextStyle,
     rollback_buf: RoundBuffer<'a>,
-    rollback_wrapper: Wrapper,
+    //rollback_wrapper: WrappedRoundBuffer,
     work_buf: &'a mut [u8],
     ibyte_work_buf: usize,
     config: Config<DrawTarget::Color>,
@@ -111,7 +111,7 @@ where
             text_style: eg::text::TextStyleBuilder::new()
                 .alignment(eg::text::Alignment::Left).baseline(eg::text::Baseline::Top).build(),
             rollback_buf: RoundBuffer::new(rollback_buf),
-            rollback_wrapper: Wrapper::new(n_cols as usize),
+            //rollback_wrapper: WrappedRoundBuffer::new(n_cols as usize),
             work_buf,
             ibyte_work_buf: 0,
             config,

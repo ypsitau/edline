@@ -190,27 +190,38 @@ impl RoundBufferItemIndex {
     }
 }
 
-pub struct Wrapper {
+pub struct WrappedRoundBuffer<'a> {
+    round_buf: RoundBuffer<'a>,
     n_cols_wrap: usize,
-    utf8_acc: Utf8Accumulator,
     n_cols: usize,
+    utf8_acc: Utf8Accumulator,
 }
 
-impl Wrapper {
-    pub fn new(n_cols_wrap: usize) -> Self {
-        Wrapper { n_cols_wrap, utf8_acc: Utf8Accumulator::new(), n_cols: 0  }
+impl<'a> WrappedRoundBuffer<'a> {
+    pub fn new(buf: &'a mut [u8], n_cols_wrap: usize) -> Self {
+        WrappedRoundBuffer {
+            round_buf: RoundBuffer::new(buf),
+            n_cols_wrap,
+            n_cols: 0,
+            utf8_acc: Utf8Accumulator::new(),
+        }
     }
 
-    pub fn push(&mut self, round_buf: &mut RoundBuffer, src: &[u8]) -> Result<(), ()> {
+    pub fn round_buf(&mut self) -> &RoundBuffer<'a> {
+        &self.round_buf
+    }
+
+    pub fn push(&mut self, src: &[u8]) -> Result<(), ()> {
         let mut ibyte_start = 0;
         let mut ibyte_end = 0;
         while ibyte_end < src.len() {
             if src[ibyte_end] == b'\n' {
-                if self.n_cols == 0 { round_buf.append_begin(); }
-                round_buf.append(&src[ibyte_start..ibyte_end], true);
+                if self.n_cols == 0 { self.round_buf.append_begin(); }
+                self.round_buf.append(&src[ibyte_start..ibyte_end], true);
                 ibyte_start = ibyte_end + 1;
                 self.n_cols = 0;
             } else if self.utf8_acc.push(src[ibyte_end]) {
+                if self.n_cols == 0 { self.round_buf.append_begin(); }
                 let s = self.utf8_acc.get_result();
                 let len_char = s.len();
                 let n_cols_char = UnicodeWidthStr::width(s);
@@ -218,31 +229,29 @@ impl Wrapper {
                 if self.n_cols + n_cols_char < self.n_cols_wrap {
                     self.n_cols += n_cols_char;
                 } else if self.n_cols + n_cols_char == self.n_cols_wrap {
-                    if self.n_cols == 0 { round_buf.append_begin(); }
-                    round_buf.append(&src[ibyte_start..=ibyte_end], true);
+                    self.round_buf.append(&src[ibyte_start..=ibyte_end], true);
                     ibyte_start = ibyte_end + 1;
                     self.n_cols = 0;
                 } else { // self.n_cols + n_cols_char > self.n_cols_wrap
                     let ibyte_prev = ibyte_end + 1 - len_char;
-                    if self.n_cols == 0 { round_buf.append_begin(); }
-                    round_buf.append(&src[ibyte_start..ibyte_prev], true);
+                    self.round_buf.append(&src[ibyte_start..ibyte_prev], true);
                     ibyte_start = ibyte_prev;
-                    round_buf.append_begin();
-                    round_buf.append(&src[ibyte_start..=ibyte_end], false);
+                    self.round_buf.append_begin();
+                    self.round_buf.append(&src[ibyte_start..=ibyte_end], false);
                     self.n_cols = n_cols_char;
                 }
             }
             ibyte_end += 1;
         }
         if ibyte_start < src.len() {
-            round_buf.append(&src[ibyte_start..], false);
+            self.round_buf.append(&src[ibyte_start..], false);
         }
         Ok(())
     }
 
-    pub fn flush(&mut self, round_buf: &mut RoundBuffer) {
+    pub fn flush(&mut self) {
         if self.n_cols > 0 {
-            round_buf.append(&[], true);
+            self.round_buf.append(&[], true);
             self.n_cols = 0;
         }
     }
