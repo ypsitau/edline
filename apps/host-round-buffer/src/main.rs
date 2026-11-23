@@ -65,8 +65,8 @@ pub fn print_report(round_buf: &mut edline::RoundBuffer) {
 pub fn print_buf(round_buf: &edline::RoundBuffer) {
     const NCOLS: usize = 16;
     println!("first:0x{:04x} last:0x{:04x} write:0x{:04x} count:{}",
-        round_buf.offset_top(), round_buf.offset_bottom(), round_buf.offset_write(), round_buf.count());
-    let mut offset = 0;
+        round_buf.ibyte_top(), round_buf.ibyte_bottom(), round_buf.ibyte_write(), round_buf.count());
+    let mut ibyte = 0;
     for chunk in round_buf.buf().chunks(NCOLS) {
         for byte in chunk {
             print!("{:02x} ", byte);
@@ -84,11 +84,11 @@ pub fn print_buf(round_buf: &edline::RoundBuffer) {
         println!();
         for _ in 0..chunk.len() {
             let mut n = 0;
-            if offset == round_buf.offset_top() { print!("T"); n += 1;}
-            if offset == round_buf.offset_bottom() { print!("B"); n += 1; }
-            if offset == round_buf.offset_write() { print!("W"); n += 1; }
+            if ibyte == round_buf.ibyte_top() { print!("T"); n += 1;}
+            if ibyte == round_buf.ibyte_bottom() { print!("B"); n += 1; }
+            if ibyte == round_buf.ibyte_write() { print!("W"); n += 1; }
             for _ in n..3 { print!(" "); }
-            offset += 1;
+            ibyte += 1;
         }
         println!();
     }

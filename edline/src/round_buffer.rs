@@ -29,18 +29,17 @@ impl<'a> RoundBuffer<'a> {
 
     pub fn buf(&self) -> &[u8] { self.buf }
 
-    pub fn offset_top(&self) -> usize { self.ibyte_top }
+    pub fn ibyte_top(&self) -> usize { self.ibyte_top }
 
-    pub fn offset_bottom(&self) -> usize { self.ibyte_bottom }
+    pub fn ibyte_bottom(&self) -> usize { self.ibyte_bottom }
 
-    pub fn offset_write(&self) -> usize { self.ibyte_write }
+    pub fn ibyte_write(&self) -> usize { self.ibyte_write }
 
     pub fn count(&self) -> usize { self.n_items }
 
     pub fn push(&mut self, src: &[u8]) -> Result<(), ()> {
         self.append_begin();
         self.append(src, true);
-        self.n_items += 1;
         Ok(())
     }
 
@@ -90,7 +89,10 @@ impl<'a> RoundBuffer<'a> {
             self.buf[0..nbytes_rest].copy_from_slice(&src[nbytes_copy..]);
             self.ibyte_write = offset_write_end;
         }
-        if set_terminator { self.buf[offset_write_end - 1] = 0x00; }
+        if set_terminator {
+            self.buf[offset_write_end - 1] = 0x00;
+            self.n_items += 1;
+        }
     }
 
     pub fn seek_item_next(&self, item_index: &mut RoundBufferItemIndex) -> bool {
@@ -236,5 +238,12 @@ impl Wrapper {
             round_buf.append(&src[ibyte_start..], false);
         }
         Ok(())
+    }
+
+    pub fn flush(&mut self, round_buf: &mut RoundBuffer) {
+        if self.n_cols > 0 {
+            round_buf.append(&[], true);
+            self.n_cols = 0;
+        }
     }
 }
