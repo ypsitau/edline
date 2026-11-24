@@ -6,17 +6,22 @@ use crate::char_attr;
 use crate::utf8_accumulator::Utf8Accumulator;
 
 pub struct Config {
+    query_text_area_size: bool,
 }
 
 impl Config {
     pub fn default() -> Self {
-        Self {}
+        Self { query_text_area_size: true }
+    }
+
+    pub fn query_text_area_size(self, query_text_area_size: bool) -> Self {
+        Self { query_text_area_size, ..self }
     }
 }
 
 pub struct ConsoleOutput<Writer, CharAttr: char_attr::CharAttr> {
     writer: Writer,
-    _config: Config,
+    config: Config,
     utf8_acc: Utf8Accumulator,
     char_attr: CharAttr,
     ibyte_char_attr: usize,
@@ -31,7 +36,7 @@ impl<Writer: io_async::Write, CharAttr: char_attr::CharAttr> ConsoleOutput<Write
     pub fn new(writer: Writer, config: Config) -> Self {
         Self {
             writer,
-            _config: config,
+            config,
             utf8_acc: Utf8Accumulator::new(),
             char_attr: CharAttr::new(),
             ibyte_char_attr: 0,
@@ -159,8 +164,10 @@ impl<Writer: io_async::Write, CharAttr: char_attr::CharAttr> crate::editor::Outp
     }
 
     async fn query_text_area_size(&mut self) {
-        self.writer.write_all(b"\x1b[18t").await.unwrap();
-        self.writer.flush().await.unwrap();
+        if self.config.query_text_area_size {
+            self.writer.write_all(b"\x1b[18t").await.unwrap();
+            self.writer.flush().await.unwrap();
+        }
     }
 
     async fn update_text_area_size(&mut self, n_cols: usize, n_rows: usize) {
