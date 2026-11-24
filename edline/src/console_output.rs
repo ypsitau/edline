@@ -26,8 +26,8 @@ pub struct ConsoleOutput<Writer, CharAttr: char_attr::CharAttr> {
     char_attr: CharAttr,
     ibyte_char_attr: usize,
     char_attr_prev: CharAttr,
-    n_cols: usize,
-    n_rows: usize,
+    ncols: usize,
+    nrows: usize,
     pos: usize,
     char_attr_changed: bool,
 }
@@ -41,8 +41,8 @@ impl<Writer: io_async::Write, CharAttr: char_attr::CharAttr> ConsoleOutput<Write
             char_attr: CharAttr::new(),
             ibyte_char_attr: 0,
             char_attr_prev: CharAttr::new(),
-            n_cols: 80,
-            n_rows: 25,
+            ncols: 80,
+            nrows: 25,
             pos: 0,
             char_attr_changed: false,
         }
@@ -172,7 +172,7 @@ impl<Writer: io_async::Write, CharAttr: char_attr::CharAttr> crate::editor::Outp
 
     async fn update_text_area_size(&mut self, n_cols: usize, n_rows: usize) {
         //println!("Updating text area size: {} cols, {} rows", n_cols, n_rows);
-        self.n_cols = n_cols;
-        self.n_rows = n_rows;
+        self.ncols = n_cols;
+        self.nrows = n_rows;
     }
 }

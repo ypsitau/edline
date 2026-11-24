@@ -71,10 +71,10 @@ pub struct GraphicsOutput<'a, DrawTarget: eg::draw_target::DrawTarget, DelayNs, 
     char_attr_prev: CharAttr,
     x_advance: i32,
     y_advance: i32,
-    i_col: i32,
-    i_row: i32,
-    n_cols: i32,
-    n_rows: i32,
+    icol: i32,
+    irow: i32,
+    ncols: i32,
+    nrows: i32,
     cursor_visible: bool,
     cursor_blinking_toggle: bool,
 }
@@ -97,8 +97,8 @@ where
         let x_advance = font.character_size.width as i32;
         let y_advance = font.character_size.height as i32 + config.ht_cursor as i32;
         let size = target.bounding_box().size;
-        let n_cols = size.width as i32 / x_advance;
-        let n_rows = size.height as i32 / y_advance;
+        let ncols = size.width as i32 / x_advance;
+        let nrows = size.height as i32 / y_advance;
         Self {
             target,
             character_style: eg::mono_font::MonoTextStyleBuilder::new()
@@ -106,7 +106,7 @@ where
                 .background_color(config.background_color).build(),
             text_style: eg::text::TextStyleBuilder::new()
                 .alignment(eg::text::Alignment::Left).baseline(eg::text::Baseline::Top).build(),
-            rollback_buf: WrappedRoundBuffer::new(rollback_buf, n_cols as usize),
+            rollback_buf: WrappedRoundBuffer::new(rollback_buf, ncols as usize),
             config,
             delay,
             fn_refresh,
@@ -114,10 +114,10 @@ where
             char_attr: CharAttr::new(),
             ibyte_char_attr: 0,
             char_attr_prev: CharAttr::new(),
-            i_col: 0,
-            i_row: 0,
+            icol: 0,
+            irow: 0,
             x_advance, y_advance,
-            n_cols, n_rows,
+            ncols, nrows,
             cursor_visible: false,
             cursor_blinking_toggle: false,
         }
@@ -142,8 +142,8 @@ where
         let mut char_attr = CharAttr::new();
         let mut char_attr_prev = CharAttr::new();
         let mut ibyte_char_attr = 0;
-        let mut i_row = core::cmp::min(self.n_rows - n_rows_bottom, self.rollback_buf.count() as i32);
-        self.i_row = i_row;
+        let mut i_row = core::cmp::min(self.nrows - n_rows_bottom, self.rollback_buf.count() as i32);
+        self.irow = i_row;
         let mut marker = RoundBufferMarker::new();
         while i_row > 0 && self.rollback_buf.seek_item_prev(&mut marker) {
             i_row -= 1;
@@ -171,7 +171,7 @@ where
                     ibyte_char_attr = 0;
                 }
             }
-            if i_col < self.n_cols {
+            if i_col < self.ncols {
                 let pt = self.calc_point(i_col, i_row);
                 eg::primitives::Rectangle::new(pt, Size::new((width - pt.x) as u32, self.y_advance as u32))
                     .into_styled(eg::primitives::PrimitiveStyle::with_fill(self.config.background_color))
@@ -179,7 +179,7 @@ where
             }
         }
         if n_rows_bottom > 0 {
-            let y = self.calc_y(self.n_rows - n_rows_bottom);
+            let y = self.calc_y(self.nrows - n_rows_bottom);
             eg::primitives::Rectangle::new(Point::new(0, y), Size::new(width as u32, (height - y) as u32))
                 .into_styled(eg::primitives::PrimitiveStyle::with_fill(self.config.background_color))
                 .draw(&mut self.target).ok();
@@ -196,8 +196,8 @@ where
 {
     fn draw_cursor(&mut self, visible: bool) {
         let color = if visible { self.config.text_color } else { self.config.background_color };
-        let x = self.calc_x(self.i_col);
-        let y = self.calc_y(self.i_row) + self.config.font.character_size.height as i32;
+        let x = self.calc_x(self.icol);
+        let y = self.calc_y(self.irow) + self.config.font.character_size.height as i32;
         eg::primitives::Rectangle::new(Point::new(x, y), Size::new(self.config.font.character_size.width, self.config.ht_cursor))
             .into_styled(eg::primitives::PrimitiveStyle::with_fill(color))
             .draw(&mut self.target).unwrap_or_else(|_| panic!("failed to draw cursor"));
@@ -232,8 +232,8 @@ where
     async fn init(&mut self) {
         self.utf8_acc.reset();
         self.ibyte_char_attr = 0;
-        self.i_col = 0;
-        self.i_row = 0;
+        self.icol = 0;
+        self.irow = 0;
         self.cursor_visible = false;
         self.target.clear(self.config.background_color).ok();
         self.refresh();
@@ -251,18 +251,18 @@ where
                 }
                 let s = self.utf8_acc.get_result();
                 if s == "\n" {
-                    self.i_col = 0;
-                    self.i_row += 1;
+                    self.icol = 0;
+                    self.irow += 1;
                 } else {
-                    let i_col_next = self.i_col + UnicodeWidthStr::width(s) as i32;
-                    if i_col_next >= self.n_cols {
-                        self.i_col = 0;
-                        self.i_row += 1;
+                    let i_col_next = self.icol + UnicodeWidthStr::width(s) as i32;
+                    if i_col_next >= self.ncols {
+                        self.icol = 0;
+                        self.irow += 1;
                     }
-                    let pt = self.calc_point(self.i_col, self.i_row);
+                    let pt = self.calc_point(self.icol, self.irow);
                     eg::text::Text::with_text_style(s, pt, self.character_style, self.text_style)
                         .draw(&mut self.target).ok();
-                    self.i_col = i_col_next;
+                    self.icol = i_col_next;
                 }
                 self.utf8_acc.reset();
                 self.char_attr_prev.clone_from(&self.char_attr);
@@ -292,25 +292,25 @@ where
         self.rollback_buf.push(line_buf_combined).unwrap();
         self.rollback_buf.flush();
         self.hide_cursor();
-        self.i_col = 0;
+        self.icol = 0;
         self.draw_rollback(1);
         self.show_cursor();
     }
 
     async fn move_cursor_left_n(&mut self, n: usize) {
         self.hide_cursor();
-        self.i_col -= n as i32;
+        self.icol -= n as i32;
         self.show_cursor();
     }
 
     async fn move_cursor_right_n(&mut self, n: usize) {
         self.hide_cursor();
-        self.i_col += n as i32;
+        self.icol += n as i32;
         self.show_cursor();
     }
 
     async fn delete_to_line_end(&mut self) {
-        let pt = self.calc_point(self.i_col, self.i_row);
+        let pt = self.calc_point(self.icol, self.irow);
         let width = self.target.bounding_box().size.width as i32;
         if pt.x >= width { return; }
         self.hide_cursor();
