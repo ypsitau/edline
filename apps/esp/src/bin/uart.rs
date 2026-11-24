@@ -15,8 +15,9 @@ struct Board<UartTx, UartRx> {
 #[esp_rtos::main]
 async fn main(_spawner: emb::executor::Spawner) {
     let board = init_board();
+    let config = edline::ConsoleConfig::default();
     let key_reader = serkey::Reader::new(board.uart_rx);
-    let task_edline = edline::simple_task_console(board.uart_tx, key_reader, false);
+    let task_edline = edline::simple_task_console(board.uart_tx, config, key_reader, false);
     task_edline.await;
 }
 
