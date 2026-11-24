@@ -22,6 +22,7 @@ mod emb {
 }
 
 use rp_uart_display::board_rp;
+use embedded_graphics as eg;
 
 #[emb::executor::main]
 async fn main(_spawner: emb::executor::Spawner) {
@@ -29,7 +30,12 @@ async fn main(_spawner: emb::executor::Spawner) {
     let board = board_rp::with_mipidsi::<1, _>(mipidsi::models::ST7789, (240, 320),
         opts::Orientation::new().rotate(opts::Rotation::Deg180),
         opts::ColorOrder::Rgb, opts::ColorInversion::Inverted);
+    let config = edline::GraphicsConfig::default()
+        .font(&eg::mono_font::ascii::FONT_6X12)
+        .text_color(From::from(eg::pixelcolor::Rgb888::new(255, 255, 255)))
+        .background_color(From::from(eg::pixelcolor::Rgb888::new(0, 0, 128)))
+        .ht_cursor(2);
     let key_reader = serkey::Reader::new(board.uart_rx);
-    let task_edline = edline::simple_task_graphics(board.display, key_reader, false, emb::time::Delay, |_| {});
+    let task_edline = edline::simple_task_graphics(board.display, config, key_reader, false, emb::time::Delay, |_| {});
     task_edline.await;
 }

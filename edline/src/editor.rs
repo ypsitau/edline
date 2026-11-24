@@ -11,8 +11,8 @@ use crate::round_buffer::RoundBuffer;
 use crate::round_buffer::RoundBufferMarker;
 use crate::char_attr;
 use crate::utf8_accumulator::Utf8Accumulator;
-use crate::console_output::Config as ConsoleConfig;
-use crate::graphics_output::Config as GraphicsConfig;
+pub use crate::console_output::Config as ConsoleConfig;
+pub use crate::graphics_output::Config as GraphicsConfig;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
@@ -540,7 +540,8 @@ impl<'a, OutputT: Output, CharAttr: char_attr::CharAttr> Editor<'a, OutputT, Cha
 }
 
 #[allow(dead_code)]
-pub async fn simple_task_console<Writer, KeyReader>(writer: Writer, key_reader: KeyReader, enable_break: bool)
+pub async fn simple_task_console<Writer, KeyReader>
+    (writer: Writer, config: ConsoleConfig, key_reader: KeyReader, enable_break: bool)
 where
     Writer: io_async::Write,
     KeyReader: keycode::ReadKey,
@@ -556,14 +557,13 @@ where
         STATIC_CELL.init([0u8; BUFSIZE])
     };
     
-    let config = ConsoleConfig::default();
     let editor = Editor::with_console_16colors_deco(line_buf, history_buf, writer, config);
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
 #[allow(dead_code)]
 pub async fn simple_task_graphics<DrawTarget, ColorType, KeyReader, DelayNs, FnRefresh>
-    (target: DrawTarget, key_reader: KeyReader, enable_break: bool, delay: DelayNs, fn_refresh: FnRefresh)
+    (target: DrawTarget, config: GraphicsConfig<ColorType>, key_reader: KeyReader, enable_break: bool, delay: DelayNs, fn_refresh: FnRefresh)
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     ColorType: From<eg::pixelcolor::Rgb888>,
@@ -585,11 +585,6 @@ where
         static STATIC_CELL: StaticCell<[u8; 1024]> = StaticCell::new();
         STATIC_CELL.init([0u8; 1024])
     };
-    let config = GraphicsConfig::<ColorType>::default()
-        .font(&eg::mono_font::ascii::FONT_10X20)
-        .text_color(ColorType::from(eg::pixelcolor::Rgb888::new(255, 255, 255)))
-        .background_color(ColorType::from(eg::pixelcolor::Rgb888::new(0, 0, 128)))
-        .ht_cursor(2);
     let editor = Editor::with_graphics_mono_color(line_buf, history_buf, rollback_buf, target, config, delay, fn_refresh);
     simple_task_common(editor, key_reader, enable_break).await;
 }
