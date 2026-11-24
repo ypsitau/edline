@@ -3,7 +3,7 @@ use embedded_graphics as eg;
 use embedded_graphics::prelude::*;
 use unicode_width::UnicodeWidthStr;
 use crate::char_attr;
-use crate::round_buffer::{RoundBuffer, RoundBufferMarker, WrappedRoundBuffer};
+use crate::round_buffer::{WrappedRoundBuffer, RoundBufferMarker};
 use crate::utf8_accumulator::Utf8Accumulator;
 
 //-----------------------------------------------------------------------------
@@ -135,24 +135,18 @@ where
         Point::new(self.calc_x(i_col), self.calc_y(i_row))
     }
 
-    fn advance_row(&mut self) {
-        if self.i_row + 1 < self.n_rows {
-            self.i_row += 1;
-            return;
-        }
-        let width = self.target.bounding_box().size.width as i32;
-        let mut marker = RoundBufferMarker::new();
+    fn draw_rollback(&mut self, n_rows_bottom: i32) {
+        let bbox_size = self.target.bounding_box().size;
+        let (width, height) = (bbox_size.width as i32, bbox_size.height as i32);
         let mut utf8_acc = Utf8Accumulator::new();
         let mut char_attr = CharAttr::new();
-        let mut ibyte_char_attr = 0;
         let mut char_attr_prev = CharAttr::new();
-        let mut i_row = self.n_rows - 1;
-        let y = self.calc_y(i_row);
-        eg::primitives::Rectangle::new(Point::new(0, y), Size::new(width as u32, self.y_advance as u32))
-            .into_styled(eg::primitives::PrimitiveStyle::with_fill(self.config.background_color))
-            .draw(&mut self.target).ok();
-        i_row -= 1;
-        while i_row >= 0 && self.rollback_buf.seek_item_prev(&mut marker) {
+        let mut ibyte_char_attr = 0;
+        let mut i_row = core::cmp::min(self.n_rows - n_rows_bottom, self.rollback_buf.count() as i32);
+        self.i_row = i_row;
+        let mut marker = RoundBufferMarker::new();
+        while i_row > 0 && self.rollback_buf.seek_item_prev(&mut marker) {
+            i_row -= 1;
             let mut i_col = 0;
             utf8_acc.reset();
             let (first, second) = self.rollback_buf.get_item(marker).unwrap();
@@ -183,7 +177,12 @@ where
                     .into_styled(eg::primitives::PrimitiveStyle::with_fill(self.config.background_color))
                     .draw(&mut self.target).ok();
             }
-            i_row -= 1;
+        }
+        if n_rows_bottom > 0 {
+            let y = self.calc_y(self.n_rows - n_rows_bottom);
+            eg::primitives::Rectangle::new(Point::new(0, y), Size::new(width as u32, (height - y) as u32))
+                .into_styled(eg::primitives::PrimitiveStyle::with_fill(self.config.background_color))
+                .draw(&mut self.target).ok();
         }
     }
 }
@@ -284,17 +283,17 @@ where
                 utf8_acc.reset();
             }
         }
-        //self.hide_cursor();
-        //self.i_col = 0;
-        //self.advance_row();
-        //self.show_cursor();
+        self.hide_cursor();
+        self.draw_rollback(1);
+        self.show_cursor();
     }
 
     async fn new_line(&mut self, line_buf_combined: &[u8]) {
         self.rollback_buf.push(line_buf_combined).unwrap();
+        self.rollback_buf.flush();
         self.hide_cursor();
         self.i_col = 0;
-        self.advance_row();
+        self.draw_rollback(1);
         self.show_cursor();
     }
 

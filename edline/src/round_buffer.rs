@@ -251,6 +251,10 @@ impl<'a> WrappedRoundBuffer<'a> {
         }
     }
 
+    pub fn count(&self) -> usize {
+        self.round_buf.count()
+    }
+
     pub fn round_buf(&mut self) -> &RoundBuffer<'a> {
         &self.round_buf
     }
