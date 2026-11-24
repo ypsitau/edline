@@ -3,7 +3,7 @@ use embedded_graphics as eg;
 use embedded_graphics::prelude::*;
 use unicode_width::UnicodeWidthStr;
 use crate::char_attr;
-use crate::round_buffer::{RoundBuffer, RoundBufferItemIndex, WrappedRoundBuffer};
+use crate::round_buffer::{RoundBuffer, RoundBufferMarker, WrappedRoundBuffer};
 use crate::utf8_accumulator::Utf8Accumulator;
 
 //-----------------------------------------------------------------------------
@@ -117,7 +117,7 @@ where
             i_col: 0,
             i_row: 0,
             x_advance, y_advance,
-            n_cols: n_cols, n_rows,
+            n_cols, n_rows,
             cursor_visible: false,
             cursor_blinking_toggle: false,
         }
@@ -141,7 +141,7 @@ where
             return;
         }
         let width = self.target.bounding_box().size.width as i32;
-        let mut item_index = RoundBufferItemIndex::new();
+        let mut marker = RoundBufferMarker::new();
         let mut utf8_acc = Utf8Accumulator::new();
         let mut char_attr = CharAttr::new();
         let mut ibyte_char_attr = 0;
@@ -152,10 +152,10 @@ where
             .into_styled(eg::primitives::PrimitiveStyle::with_fill(self.config.background_color))
             .draw(&mut self.target).ok();
         i_row -= 1;
-        while i_row >= 0 && self.rollback_buf.seek_item_prev(&mut item_index) {
+        while i_row >= 0 && self.rollback_buf.seek_item_prev(&mut marker) {
             let mut i_col = 0;
             utf8_acc.reset();
-            let (first, second) = self.rollback_buf.get_item(item_index).unwrap();
+            let (first, second) = self.rollback_buf.get_item(marker).unwrap();
             //println!("i_row: {} {}{}", i_row,
             //    str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
             let y = self.calc_y(i_row);

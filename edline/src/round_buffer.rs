@@ -1,4 +1,3 @@
-use embedded_io_async::Seek;
 use unicode_width::UnicodeWidthStr;
 use crate::utf8_accumulator::Utf8Accumulator;
 
@@ -95,18 +94,18 @@ impl<'a> RoundBuffer<'a> {
         }
     }
 
-    pub fn seek_item_next(&self, item_index: &mut RoundBufferItemIndex) -> bool {
-        if item_index.ibyte == Self::IBYTE_NONE {
+    pub fn seek_item_next(&self, marker: &mut RoundBufferMarker) -> bool {
+        if marker.ibyte == Self::IBYTE_NONE {
             if self.is_empty() { return false; }
-            item_index.ibyte = self.ibyte_top;
-        } else if item_index.ibyte == self.ibyte_bottom {
+            marker.ibyte = self.ibyte_top;
+        } else if marker.ibyte == self.ibyte_bottom {
             return false;
         } else {
-            item_index.ibyte = {
-                let mut idx = item_index.ibyte;
+            marker.ibyte = {
+                let mut idx = marker.ibyte;
                 while self.buf[idx] != 0x00 {
                     idx = if idx + 1 < self.buf.len() { idx + 1 } else { 0 };
-                    assert!(idx != item_index.ibyte, "Failed to find null terminator in buffer");
+                    assert!(idx != marker.ibyte, "Failed to find null terminator in buffer");
                 }
                 if idx + 1 < self.buf.len() { idx + 1 } else { 0 }
             };
@@ -114,15 +113,15 @@ impl<'a> RoundBuffer<'a> {
         true
     }
 
-    pub fn seek_item_prev(&self, item_index: &mut RoundBufferItemIndex) -> bool {
-        if item_index.ibyte == Self::IBYTE_NONE {
+    pub fn seek_item_prev(&self, marker: &mut RoundBufferMarker) -> bool {
+        if marker.ibyte == Self::IBYTE_NONE {
             if self.is_empty() { return false; }
-            item_index.ibyte = self.ibyte_bottom;
-        } else if item_index.ibyte == self.ibyte_top {
+            marker.ibyte = self.ibyte_bottom;
+        } else if marker.ibyte == self.ibyte_top {
             return false;
         } else {
-            item_index.ibyte = {
-                let mut idx = item_index.ibyte;
+            marker.ibyte = {
+                let mut idx = marker.ibyte;
                 idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
                 let mut offset_start;
                 loop {
@@ -130,7 +129,7 @@ impl<'a> RoundBuffer<'a> {
                     if offset_start == self.ibyte_top { break; }
                     idx = if idx == 0 { self.buf.len() - 1 } else { idx - 1 };
                     if self.buf[idx] == 0x00 { break; }
-                    assert!(idx != item_index.ibyte, "Failed to find null terminator in buffer");
+                    assert!(idx != marker.ibyte, "Failed to find null terminator in buffer");
                 }
                 offset_start
             }
@@ -138,27 +137,27 @@ impl<'a> RoundBuffer<'a> {
         true
     }
 
-    pub fn get_item(&self, item_index: RoundBufferItemIndex) -> Option<(&[u8], &[u8])> {
-        if item_index.ibyte == Self::IBYTE_NONE || self.is_empty() { return None; }
+    pub fn get_item(&self, marker: RoundBufferMarker) -> Option<(&[u8], &[u8])> {
+        if marker.ibyte == Self::IBYTE_NONE || self.is_empty() { return None; }
         let offset_end = {
-            let mut ibyte = item_index.ibyte;
+            let mut ibyte = marker.ibyte;
             while self.buf[ibyte] != 0x00 {
                 ibyte = if ibyte + 1 < self.buf.len() { ibyte + 1 } else { 0 };
-                assert!(ibyte != item_index.ibyte, "Failed to find null terminator in buffer");
+                assert!(ibyte != marker.ibyte, "Failed to find null terminator in buffer");
             }
             ibyte
         };
         if offset_end == 0 {
-            Some((&self.buf[item_index.ibyte..], &self.buf[0..0]))
-        } else if offset_end < item_index.ibyte {
-            Some((&self.buf[item_index.ibyte..], &self.buf[..offset_end]))
+            Some((&self.buf[marker.ibyte..], &self.buf[0..0]))
+        } else if offset_end < marker.ibyte {
+            Some((&self.buf[marker.ibyte..], &self.buf[..offset_end]))
         } else {
-            Some((&self.buf[item_index.ibyte..offset_end], &self.buf[0..0]))
+            Some((&self.buf[marker.ibyte..offset_end], &self.buf[0..0]))
         }
     }
 
-    pub fn is_item_equal(&self, item_index: RoundBufferItemIndex, buf: &[u8]) -> bool {
-        if let Some((first, second)) = self.get_item(item_index) {
+    pub fn is_item_equal(&self, marker: RoundBufferMarker, buf: &[u8]) -> bool {
+        if let Some((first, second)) = self.get_item(marker) {
             first.len() + second.len() == buf.len() &&
             &buf[..first.len()] == first && &buf[first.len()..] == second
         } else {
@@ -166,8 +165,8 @@ impl<'a> RoundBuffer<'a> {
         }
     }
 
-    pub fn read_item(&self, item_index: RoundBufferItemIndex, buf: &mut [u8]) -> usize {
-        if let Some((first, second)) = self.get_item(item_index) {
+    pub fn read_item(&self, marker: RoundBufferMarker, buf: &mut [u8]) -> usize {
+        if let Some((first, second)) = self.get_item(marker) {
             let ibyte_end = first.len() + second.len();
             assert!(ibyte_end <= buf.len());
             buf[..first.len()].copy_from_slice(first);
@@ -180,11 +179,11 @@ impl<'a> RoundBuffer<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RoundBufferItemIndex {
+pub struct RoundBufferMarker {
     pub ibyte: usize,
 }
 
-impl RoundBufferItemIndex {
+impl RoundBufferMarker {
     pub fn new() -> Self {
         Self { ibyte: RoundBuffer::IBYTE_NONE }
     }
@@ -256,23 +255,23 @@ impl<'a> WrappedRoundBuffer<'a> {
         &self.round_buf
     }
 
-    pub fn seek_item_next(&self, item_index: &mut RoundBufferItemIndex) -> bool {
-        self.round_buf.seek_item_next(item_index)
+    pub fn seek_item_next(&self, marker: &mut RoundBufferMarker) -> bool {
+        self.round_buf.seek_item_next(marker)
     }
 
-    pub fn seek_item_prev(&self, item_index: &mut RoundBufferItemIndex) -> bool {
-        self.round_buf.seek_item_prev(item_index)
+    pub fn seek_item_prev(&self, marker: &mut RoundBufferMarker) -> bool {
+        self.round_buf.seek_item_prev(marker)
     }
 
-    pub fn get_item(&self, item_index: RoundBufferItemIndex) -> Option<(&[u8], &[u8])> {
-        self.round_buf.get_item(item_index)
+    pub fn get_item(&self, marker: RoundBufferMarker) -> Option<(&[u8], &[u8])> {
+        self.round_buf.get_item(marker)
     }
 
-    pub fn is_item_equal(&self, item_index: RoundBufferItemIndex, buf: &[u8]) -> bool {
-        self.round_buf.is_item_equal(item_index, buf)
+    pub fn is_item_equal(&self, marker: RoundBufferMarker, buf: &[u8]) -> bool {
+        self.round_buf.is_item_equal(marker, buf)
     }
 
-    pub fn read_item(&self, item_index: RoundBufferItemIndex, buf: &mut [u8]) -> usize {
-        self.round_buf.read_item(item_index, buf)
+    pub fn read_item(&self, marker: RoundBufferMarker, buf: &mut [u8]) -> usize {
+        self.round_buf.read_item(marker, buf)
     }
 }

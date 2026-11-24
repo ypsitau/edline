@@ -3,15 +3,22 @@ use rand::RngExt;
 fn main() {
     let mut buf = [0u8; 64];
     let mut wrapped_round_buf = edline::WrappedRoundBuffer::new(&mut buf, 8);
-    print_report(&wrapped_round_buf.round_buf());
+    print_report_without_assert(&wrapped_round_buf.round_buf());
     wrapped_round_buf.push(&[b'0'; 17]).unwrap();
-    print_report(&wrapped_round_buf.round_buf());
+    print_report_without_assert(&wrapped_round_buf.round_buf());
     wrapped_round_buf.push(&[b'1'; 17]).unwrap();
-    print_report(&wrapped_round_buf.round_buf());
+    print_report_without_assert(&wrapped_round_buf.round_buf());
     wrapped_round_buf.push(&[b'2'; 17]).unwrap();
-    print_report(&wrapped_round_buf.round_buf());
+    print_report_without_assert(&wrapped_round_buf.round_buf());
     wrapped_round_buf.flush();
-    print_report(&wrapped_round_buf.round_buf());
+    print_report_without_assert(&wrapped_round_buf.round_buf());
+    wrapped_round_buf.push(&[b'3'; 17]).unwrap();
+    wrapped_round_buf.push(b"\n").unwrap();
+    print_report_without_assert(&wrapped_round_buf.round_buf());
+    wrapped_round_buf.push(b"44444444444444444\n").unwrap();
+    print_report_without_assert(&wrapped_round_buf.round_buf());
+    wrapped_round_buf.push(b"5555555555\n6666666666\n7777777777\n").unwrap();
+    print_report_without_assert(&wrapped_round_buf.round_buf());
 }
 
 fn main2() {
@@ -73,7 +80,13 @@ fn main2() {
 pub fn print_report(round_buf: &edline::RoundBuffer) {
     println!("-------------------------------------------------------------------");
     print_buf(round_buf);
-    print_items(round_buf);
+    print_items(round_buf, true);
+}
+
+pub fn print_report_without_assert(round_buf: &edline::RoundBuffer) {
+    println!("-------------------------------------------------------------------");
+    print_buf(round_buf);
+    print_items(round_buf, false);
 }
 
 pub fn print_buf(round_buf: &edline::RoundBuffer) {
@@ -108,34 +121,38 @@ pub fn print_buf(round_buf: &edline::RoundBuffer) {
     }
 }
 
-pub fn print_items(round_buf: &edline::RoundBuffer) {
+pub fn print_items(round_buf: &edline::RoundBuffer, enable_assert: bool) {
     let mut items_fwd: Vec<String> = Vec::new();
     println!("Items (forward):");
     let mut nitems = 0;
-    let mut item_index = edline::RoundBufferItemIndex::new();
-    while round_buf.seek_item_next(&mut item_index) {
-        let (first, second) = round_buf.get_item(item_index).unwrap();
+    let mut marker = edline::RoundBufferMarker::new();
+    while round_buf.seek_item_next(&mut marker) {
+        let (first, second) = round_buf.get_item(marker).unwrap();
         let (first, second) = (str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
         let item = first.to_string() + second;
         println!("\"{}\" (\"{}\" + \"{}\")", item, first, second);
         items_fwd.push(item);
         nitems += 1;
     }
-    //assert_eq!(nitems, round_buf.count(), "item count mismatch");
+    if enable_assert {
+        assert_eq!(nitems, round_buf.count(), "item count mismatch");
+    }
     let mut items_bwd: Vec<String> = Vec::new();
     println!();
     println!("Items (backward):");
-    let mut item_index = edline::RoundBufferItemIndex::new();
-    while round_buf.seek_item_prev(&mut item_index) {
-        let (first, second) = round_buf.get_item(item_index).unwrap();
+    let mut marker = edline::RoundBufferMarker::new();
+    while round_buf.seek_item_prev(&mut marker) {
+        let (first, second) = round_buf.get_item(marker).unwrap();
         let (first, second) = (str::from_utf8(first).unwrap(), str::from_utf8(second).unwrap());
         let item = first.to_string() + second;
         println!("\"{}\" (\"{}\" + \"{}\")", item, first, second);
         items_bwd.push(item);
     }
     // items_fwd is compared from the start, items_bwd from the end
-    //assert_eq!(items_fwd.len(), items_bwd.len(), "item count mismatch");
-    //for (i, (fwd, bwd)) in items_fwd.iter().zip(items_bwd.iter().rev()).enumerate() {
-    //    assert_eq!(fwd, bwd, "item mismatch at index {}", i);
-    //}
+    if enable_assert {
+        assert_eq!(items_fwd.len(), items_bwd.len(), "item count mismatch");
+        for (i, (fwd, bwd)) in items_fwd.iter().zip(items_bwd.iter().rev()).enumerate() {
+            assert_eq!(fwd, bwd, "item mismatch at index {}", i);
+        }
+    }
 }
