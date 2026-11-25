@@ -2,8 +2,8 @@ use embedded_io_async as io_async;
 use embedded_graphics as eg;
 use embedded_hal_async as hal_async;
 use crate::editor::Editor;
-use crate::console_output::{ConsoleOutput, Config as ConsoleConfig};
-use crate::graphics_output::{GraphicsOutput, Config as GraphicsConfig};
+use crate::console_output::{ConsoleOutput, ConsoleConfig as ConsoleConfig};
+use crate::graphics_output::{GraphicsOutput, GraphicsConfig as GraphicsConfig};
 use crate::color::Color;
 
 const DECO_DEFAULT: u8          = 0x80;

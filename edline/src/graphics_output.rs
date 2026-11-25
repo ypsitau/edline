@@ -7,9 +7,9 @@ use crate::round_buffer::{WrappedRoundBuffer, RoundBufferMarker};
 use crate::utf8_accumulator::Utf8Accumulator;
 
 //-----------------------------------------------------------------------------
-// Config
+// GraphicsConfig
 //-----------------------------------------------------------------------------
-pub struct Config<ColorType> {
+pub struct GraphicsConfig<ColorType> {
     pub cursor_blinking_interval: u32,
     pub font: &'static eg::mono_font::MonoFont<'static>,
     pub text_color: ColorType,
@@ -17,7 +17,7 @@ pub struct Config<ColorType> {
     pub ht_cursor: u32,
 }
 
-impl<ColorType: From<eg::pixelcolor::Rgb888>> Config<ColorType> {
+impl<ColorType: From<eg::pixelcolor::Rgb888>> GraphicsConfig<ColorType> {
     pub fn default() -> Self {
         Self {
             cursor_blinking_interval: 500,
@@ -62,7 +62,7 @@ pub struct GraphicsOutput<'a, DrawTarget: eg::draw_target::DrawTarget, DelayNs, 
     character_style: eg::mono_font::MonoTextStyle<'static, DrawTarget::Color>,
     text_style: eg::text::TextStyle,
     rollback_buf: WrappedRoundBuffer<'a>,
-    config: Config<DrawTarget::Color>,
+    config: GraphicsConfig<DrawTarget::Color>,
     delay: DelayNs,
     fn_refresh: FnRefresh,
     utf8_acc: Utf8Accumulator,
@@ -89,7 +89,7 @@ where
     pub fn new(
         target: DrawTarget,
         rollback_buf: &'a mut [u8],
-        config: Config<<DrawTarget as eg::draw_target::DrawTarget>::Color>,
+        config: GraphicsConfig<<DrawTarget as eg::draw_target::DrawTarget>::Color>,
         delay: DelayNs,
         fn_refresh: FnRefresh,
     ) -> Self {

@@ -11,8 +11,8 @@ use crate::round_buffer::RoundBuffer;
 use crate::round_buffer::RoundBufferMarker;
 use crate::char_attr;
 use crate::utf8_accumulator::Utf8Accumulator;
-pub use crate::console_output::Config as ConsoleConfig;
-pub use crate::graphics_output::Config as GraphicsConfig;
+pub use crate::console_output::ConsoleConfig;
+pub use crate::graphics_output::GraphicsConfig;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
@@ -556,7 +556,6 @@ where
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
-    
     let editor = Editor::with_console_16colors_deco(line_buf, history_buf, writer, config);
     simple_task_common(editor, key_reader, enable_break).await;
 }
@@ -582,8 +581,9 @@ where
         STATIC_CELL.init([0u8; BUFSIZE])
     };
     let rollback_buf = {
-        static STATIC_CELL: StaticCell<[u8; 1024]> = StaticCell::new();
-        STATIC_CELL.init([0u8; 1024])
+        const BUFSIZE: usize = 1024;
+        static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
+        STATIC_CELL.init([0u8; BUFSIZE])
     };
     let editor = Editor::with_graphics_mono_color(line_buf, history_buf, rollback_buf, target, config, delay, fn_refresh);
     simple_task_common(editor, key_reader, enable_break).await;

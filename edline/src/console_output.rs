@@ -5,11 +5,14 @@ use unicode_width::UnicodeWidthStr;
 use crate::char_attr;
 use crate::utf8_accumulator::Utf8Accumulator;
 
-pub struct Config {
+//-----------------------------------------------------------------------------
+// ConsoleConfig
+//-----------------------------------------------------------------------------
+pub struct ConsoleConfig {
     query_text_area_size: bool,
 }
 
-impl Config {
+impl ConsoleConfig {
     pub fn default() -> Self {
         Self { query_text_area_size: true }
     }
@@ -19,9 +22,12 @@ impl Config {
     }
 }
 
+//-----------------------------------------------------------------------------
+// ConsoleOutput
+//-----------------------------------------------------------------------------
 pub struct ConsoleOutput<Writer, CharAttr: char_attr::CharAttr> {
     writer: Writer,
-    config: Config,
+    config: ConsoleConfig,
     utf8_acc: Utf8Accumulator,
     char_attr: CharAttr,
     ibyte_char_attr: usize,
@@ -33,7 +39,7 @@ pub struct ConsoleOutput<Writer, CharAttr: char_attr::CharAttr> {
 }
 
 impl<Writer: io_async::Write, CharAttr: char_attr::CharAttr> ConsoleOutput<Writer, CharAttr> {
-    pub fn new(writer: Writer, config: Config) -> Self {
+    pub fn new(writer: Writer, config: ConsoleConfig) -> Self {
         Self {
             writer,
             config,
