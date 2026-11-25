@@ -12,6 +12,11 @@ use crate::round_buffer::RoundBufferMarker;
 use crate::char_attr;
 use crate::char_attr::CharAttr as _;
 use crate::utf8_accumulator::Utf8Accumulator;
+pub use crate::char_attr::{
+    CharAttrMonoColor, CharAttrMonoColorDeco,
+    CharAttr16Colors, CharAttr16ColorsDeco,
+    CharAttr256Colors, CharAttr256ColorsDeco,
+};
 pub use crate::console_output::ConsoleConfig;
 pub use crate::graphics_output::GraphicsConfig;
 
@@ -58,6 +63,39 @@ impl Output for DummyOutput {
     async fn blink_cursor(&mut self) {}
     async fn query_text_area_size(&mut self) -> () {}
     async fn update_text_area_size(&mut self, _n_cols: usize, _n_rows: usize) {}
+}
+
+pub fn with_console<'a, CharAttr>(
+    line_buf: &'a mut [u8],
+    history_buf: &'a mut [u8],
+    writer: impl io_async::Write,
+    config: ConsoleConfig,
+) -> Editor<'a, impl crate::editor::Output<CharAttr = CharAttr>>
+where
+    CharAttr: char_attr::CharAttr,
+{
+    let output = crate::console_output::ConsoleOutput::new(writer, config);
+    Editor::new(line_buf, history_buf, output)
+}
+
+pub fn with_graphics<'a, CharAttr, DrawTarget, DelayNs, FnRefresh, ColorType>(
+    line_buf: &'a mut [u8],
+    history_buf: &'a mut [u8],
+    rollback_buf: &'a mut [u8],
+    target: DrawTarget,
+    config: GraphicsConfig<ColorType>,
+    delay: DelayNs,
+    fn_refresh: FnRefresh,
+) -> Editor<'a, impl crate::editor::Output<CharAttr = CharAttr>>
+where
+    CharAttr: char_attr::CharAttr,
+    DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
+    DelayNs: hal_async::delay::DelayNs,
+    FnRefresh: FnMut(&mut DrawTarget),
+    ColorType: From<eg::pixelcolor::Rgb888>,
+{
+    let output = crate::graphics_output::GraphicsOutput::new(target, rollback_buf, config, delay, fn_refresh);
+    Editor::new(line_buf, history_buf, output)
 }
 
 pub struct Editor<'a, OutputT: Output> {
@@ -559,7 +597,7 @@ where
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
-    let editor = Editor::with_console_16colors_deco(line_buf, history_buf, writer, config);
+    let editor = with_console::<CharAttr16ColorsDeco>(line_buf, history_buf, writer, config);
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
@@ -588,7 +626,7 @@ where
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
-    let editor = Editor::with_graphics_mono_color(line_buf, history_buf, rollback_buf, target, config, delay, fn_refresh);
+    let editor = with_graphics::<CharAttrMonoColor, _, _, _, _>(line_buf, history_buf, rollback_buf, target, config, delay, fn_refresh);
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
