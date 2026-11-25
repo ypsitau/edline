@@ -57,6 +57,7 @@ impl<Writer: io_async::Write, CharAttr: char_attr::CharAttr> ConsoleOutput<Write
 
 impl<Writer: io_async::Write, CharAttr: char_attr::CharAttr> crate::editor::Output for ConsoleOutput<Writer, CharAttr> {
     type Error = Writer::Error;
+    type CharAttr = CharAttr;
 
     async fn init(&mut self) {
         self.utf8_acc.reset();

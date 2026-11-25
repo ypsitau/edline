@@ -108,7 +108,7 @@ pub trait CharAttr: Sized + Copy + PartialEq {
     fn is_changed_strikethrough(&self, other: &Self) -> bool { self.is_strikethrough() != other.is_strikethrough() }
 }
 
-impl<'a, Writer, CharAttrT> Editor<'a, ConsoleOutput<Writer, CharAttrT>, CharAttrT>
+impl<'a, Writer, CharAttrT> Editor<'a, ConsoleOutput<Writer, CharAttrT>>
 where
     Writer: io_async::Write,
     CharAttrT: CharAttr,
@@ -119,7 +119,7 @@ where
 }
 
 impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType, CharAttrT>
-    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttrT>, CharAttrT>
+    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttrT>>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     DelayNs: hal_async::delay::DelayNs,
@@ -171,7 +171,7 @@ impl CharAttr for CharAttrMonoColor {
     fn set_deco(self, _deco: u8) -> Self { self }
 }
 
-impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttrMonoColor>, CharAttrMonoColor>
+impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttrMonoColor>>
 where
     Writer: io_async::Write
 {
@@ -181,7 +181,7 @@ where
 }
 
 impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType>
-    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttrMonoColor>, CharAttrMonoColor>
+    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttrMonoColor>>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     DelayNs: hal_async::delay::DelayNs,
@@ -237,7 +237,7 @@ impl CharAttr for CharAttrMonoColorDeco {
     }
 }
 
-impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttrMonoColorDeco>, CharAttrMonoColorDeco>
+impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttrMonoColorDeco>>
 where
     Writer: io_async::Write
 {
@@ -247,7 +247,7 @@ where
 }
 
 impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType>
-    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttrMonoColorDeco>, CharAttrMonoColorDeco>
+    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttrMonoColorDeco>>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     DelayNs: hal_async::delay::DelayNs,
@@ -318,7 +318,7 @@ impl CharAttr for CharAttr16Colors {
     fn set_deco(self, _deco: u8) -> Self { self }
 }
 
-impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttr16Colors>, CharAttr16Colors>
+impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttr16Colors>>
 where
     Writer: io_async::Write
 {
@@ -328,7 +328,7 @@ where
 }
 
 impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType>
-    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttr16Colors>, CharAttr16Colors>
+    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttr16Colors>>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     DelayNs: hal_async::delay::DelayNs,
@@ -402,7 +402,7 @@ impl CharAttr for CharAttr16ColorsDeco {
     }
 }
 
-impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttr16ColorsDeco>, CharAttr16ColorsDeco>
+impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttr16ColorsDeco>>
 where
     Writer: io_async::Write
 {
@@ -412,7 +412,7 @@ where
 }
 
 impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType>
-    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttr16ColorsDeco>, CharAttr16ColorsDeco>
+    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttr16ColorsDeco>>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     DelayNs: hal_async::delay::DelayNs,
@@ -484,7 +484,7 @@ impl CharAttr for CharAttr256Colors {
     fn set_deco(self, _deco: u8) -> Self { self }
 }
 
-impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttr256Colors>, CharAttr256Colors>
+impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttr256Colors>>
 where
     Writer: io_async::Write
 {
@@ -494,7 +494,7 @@ where
 }
 
 impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType>
-    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttr256Colors>, CharAttr256Colors>
+    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttr256Colors>>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     DelayNs: hal_async::delay::DelayNs,
@@ -569,7 +569,7 @@ impl CharAttr for CharAttr256ColorsDeco {
     }
 }
 
-impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttr256ColorsDeco>, CharAttr256ColorsDeco>
+impl<'a, Writer> Editor<'a, ConsoleOutput<Writer, CharAttr256ColorsDeco>>
 where
     Writer: io_async::Write
 {
@@ -579,7 +579,7 @@ where
 }
 
 impl<'a, DrawTarget, DelayNs, FnRefresh, ColorType>
-    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttr256ColorsDeco>, CharAttr256ColorsDeco>
+    Editor<'a, GraphicsOutput<'a, DrawTarget, DelayNs, FnRefresh, CharAttr256ColorsDeco>>
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     DelayNs: hal_async::delay::DelayNs,

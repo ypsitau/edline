@@ -228,6 +228,7 @@ where
     CharAttr: char_attr::CharAttr,
 {
     type Error = ();
+    type CharAttr = CharAttr;
 
     async fn init(&mut self) {
         self.utf8_acc.reset();
