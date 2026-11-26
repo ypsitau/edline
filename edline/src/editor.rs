@@ -628,8 +628,9 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
 // Simple tasks
 //-----------------------------------------------------------------------------
 #[allow(dead_code)]
+/// Runs a console editor using the character attribute type selected by `char_attr_tag`.
 pub async fn simple_task_console<Writer, KeyReader>
-    (writer: Writer, config: ConsoleConfig, key_reader: KeyReader, enable_break: bool)
+    (char_attr_tag: impl CharAttrTag, writer: Writer, config: ConsoleConfig, key_reader: KeyReader, enable_break: bool)
 where
     Writer: io_async::Write,
     KeyReader: keycode::ReadKey,
@@ -644,13 +645,14 @@ where
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
-    let editor = with_console(tag::CharAttr16ColorsDeco, line_buf, history_buf, writer, config);
+    let editor = with_console(char_attr_tag, line_buf, history_buf, writer, config);
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
 #[allow(dead_code)]
+/// Runs a graphics editor using the character attribute type selected by `char_attr_tag`.
 pub async fn simple_task_graphics<DrawTarget, ColorType, KeyReader, DelayNs, FnRefresh>
-    (target: DrawTarget, config: GraphicsConfig<ColorType>, key_reader: KeyReader, enable_break: bool, delay: DelayNs, fn_refresh: FnRefresh)
+    (char_attr_tag: impl CharAttrTag, target: DrawTarget, config: GraphicsConfig<ColorType>, key_reader: KeyReader, enable_break: bool, delay: DelayNs, fn_refresh: FnRefresh)
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     ColorType: From<eg::pixelcolor::Rgb888>,
@@ -673,7 +675,7 @@ where
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
-    let editor = with_graphics(tag::CharAttrMonoColor,
+    let editor = with_graphics(char_attr_tag,
         line_buf, history_buf, target, rollback_buf, config, delay, fn_refresh);
     simple_task_common(editor, key_reader, enable_break).await;
 }

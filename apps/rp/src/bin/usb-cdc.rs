@@ -77,7 +77,7 @@ async fn main(_spawner: emb::executor::Spawner) {
     let task_usb = usb_device.run();
     let config = edline::ConsoleConfig::default();
     let key_reader = serkey::Reader::new(cdc_receiver);
-    let task_edline = edline::simple_task_console(cdc_sender, config, key_reader, false);
+    let task_edline = edline::simple_task_console(edline::tag::CharAttr16ColorsDeco, cdc_sender, config, key_reader, false);
     emb::futures::join::join(task_usb, task_edline).await;
 }
 

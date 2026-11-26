@@ -16,7 +16,7 @@ async fn main() -> std::io::Result<()> {
     let stdin = embedded_io_adapters::tokio_1::FromTokio::new(tokio::io::stdin());
     let key_reader = serkey::Reader::new(stdin);
     let config = edline::ConsoleConfig::default();
-    edline::simple_task_console(stdout, config, key_reader, true).await;
+    edline::simple_task_console(edline::tag::CharAttr16ColorsDeco, stdout, config, key_reader, true).await;
     crossterm::terminal::disable_raw_mode()?;
     #[cfg(windows)]
     unsafe {

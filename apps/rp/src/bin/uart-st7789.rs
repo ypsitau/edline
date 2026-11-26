@@ -36,6 +36,6 @@ async fn main(_spawner: emb::executor::Spawner) {
         .background_color(From::from(eg::pixelcolor::Rgb888::new(0, 0, 128)))
         .ht_cursor(2);
     let key_reader = serkey::Reader::new(board.uart_rx);
-    let task_edline = edline::simple_task_graphics(board.display, config, key_reader, false, emb::time::Delay, |_| {});
+    let task_edline = edline::simple_task_graphics(edline::tag::CharAttrMonoColor, board.display, config, key_reader, false, emb::time::Delay, |_| {});
     task_edline.await;
 }
