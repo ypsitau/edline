@@ -110,18 +110,17 @@ pub trait CharAttrTag {
 /// Tags for selecting character attribute types.
 pub mod tag {
     macro_rules! char_attr_tags {
-        ($($attr:ident),+ $(,)?) => {
+        ($($char_attr:ident),+ $(,)?) => {
             $(
                 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-                pub struct $attr;
+                pub struct $char_attr;
 
-                impl super::CharAttrTag for $attr {
-                    type CharAttr = super::$attr;
+                impl super::CharAttrTag for $char_attr {
+                    type CharAttr = super::$char_attr;
                 }
             )+
         };
     }
-
     char_attr_tags! {
         CharAttrMonoColor,
         CharAttrMonoColorDeco,
