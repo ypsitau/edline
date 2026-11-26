@@ -102,6 +102,36 @@ pub trait CharAttr: Sized + Copy + PartialEq {
     fn is_changed_strikethrough(&self, other: &Self) -> bool { self.is_strikethrough() != other.is_strikethrough() }
 }
 
+/// A zero-sized tag selecting a character attribute type.
+pub trait CharAttrTag {
+    type CharAttr: CharAttr;
+}
+
+/// Tags for selecting character attribute types.
+pub mod tag {
+    macro_rules! char_attr_tags {
+        ($($attr:ident),+ $(,)?) => {
+            $(
+                #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+                pub struct $attr;
+
+                impl super::CharAttrTag for $attr {
+                    type CharAttr = super::$attr;
+                }
+            )+
+        };
+    }
+
+    char_attr_tags! {
+        CharAttrMonoColor,
+        CharAttrMonoColorDeco,
+        CharAttr16Colors,
+        CharAttr16ColorsDeco,
+        CharAttr256Colors,
+        CharAttr256ColorsDeco,
+    }
+}
+
 //-----------------------------------------------------------------------------
 // CharAttrMonoColor
 //-----------------------------------------------------------------------------

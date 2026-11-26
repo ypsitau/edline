@@ -10,9 +10,9 @@ use unicode_width::UnicodeWidthStr;
 use crate::round_buffer::RoundBuffer;
 use crate::round_buffer::RoundBufferMarker;
 use crate::char_attr;
-use crate::char_attr::CharAttr as _;
 use crate::utf8_accumulator::Utf8Accumulator;
 pub use crate::char_attr::{
+    tag, CharAttr, CharAttrTag,
     CharAttrMonoColor, CharAttrMonoColorDeco,
     CharAttr16Colors, CharAttr16ColorsDeco,
     CharAttr256Colors, CharAttr256ColorsDeco,
@@ -24,6 +24,7 @@ pub use crate::graphics_output::GraphicsConfig;
 // Constructor functions
 //-----------------------------------------------------------------------------
 pub fn with_console<'a, CharAttr>(
+    _char_attr_tag: impl char_attr::CharAttrTag<CharAttr = CharAttr>,
     line_buf: &'a mut [u8],
     history_buf: &'a mut [u8],
     writer: impl io_async::Write,
@@ -37,6 +38,7 @@ where
 }
 
 pub fn with_graphics<'a, CharAttr, DrawTarget, DelayNs, FnRefresh>(
+    _char_attr_tag: impl char_attr::CharAttrTag<CharAttr = CharAttr>,
     line_buf: &'a mut [u8],
     history_buf: &'a mut [u8],
     target: DrawTarget,
@@ -52,8 +54,7 @@ where
     DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
 {
-    let output = crate::graphics_output::GraphicsOutput::new
-        (target, rollback_buf, config, delay, fn_refresh);
+    let output = crate::graphics_output::GraphicsOutput::new(target, rollback_buf, config, delay, fn_refresh);
     Editor::new(line_buf, history_buf, output)
 }
 
@@ -643,7 +644,7 @@ where
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
-    let editor = with_console::<CharAttr16ColorsDeco>(line_buf, history_buf, writer, config);
+    let editor = with_console(tag::CharAttr16ColorsDeco, line_buf, history_buf, writer, config);
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
@@ -672,7 +673,7 @@ where
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
-    let editor = with_graphics::<CharAttrMonoColor, _, _, _>(
+    let editor = with_graphics(tag::CharAttrMonoColor,
         line_buf, history_buf, target, rollback_buf, config, delay, fn_refresh);
     simple_task_common(editor, key_reader, enable_break).await;
 }
