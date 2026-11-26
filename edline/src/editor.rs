@@ -37,7 +37,7 @@ where
     Editor::new(line_buf, history_buf, output)
 }
 
-pub fn with_graphics<'a, CharAttr, DrawTarget, FnRefresh>(
+pub fn with_graphics<'a, CharAttr, DrawTarget>(
     _char_attr_tag: impl char_attr::CharAttrTag<CharAttr = CharAttr>,
     line_buf: &'a mut [u8],
     history_buf: &'a mut [u8],
@@ -45,13 +45,12 @@ pub fn with_graphics<'a, CharAttr, DrawTarget, FnRefresh>(
     rollback_buf: &'a mut [u8],
     config: GraphicsConfig<<DrawTarget as eg::draw_target::DrawTarget>::Color>,
     delay: impl hal_async::delay::DelayNs,
-    fn_refresh: FnRefresh,
+    fn_refresh: impl FnMut(&mut DrawTarget),
 ) -> Editor<'a, impl crate::editor::Output<CharAttr = CharAttr>>
 where
     CharAttr: char_attr::CharAttr,
     DrawTarget: eg::draw_target::DrawTarget,
     DrawTarget::Color: From<eg::pixelcolor::Rgb888>,
-    FnRefresh: FnMut(&mut DrawTarget),
 {
     let output = crate::graphics_output::GraphicsOutput::new(target, rollback_buf, config, delay, fn_refresh);
     Editor::new(line_buf, history_buf, output)

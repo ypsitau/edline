@@ -45,7 +45,8 @@ async fn main() { //-> Result<(), core::convert::Infallible> {
         .font(&eg::mono_font::ascii::FONT_10X20)
         .text_color(From::from(eg::pixelcolor::Rgb888::new(255, 255, 255)))
         .background_color(From::from(eg::pixelcolor::Rgb888::new(0, 0, 128)));
-    let task_edline = edline::simple_task_graphics(edline::tag::CharAttrMonoColor, target, config, key_reader, true, ThreadDelay,
+    let task_edline = edline::simple_task_graphics(edline::tag::CharAttrMonoColor,
+        target, config, key_reader, true, ThreadDelay,
         |target| request_update(&update_sender, target));
     tokio::select! {
         _ = task_window => {}
