@@ -2,6 +2,7 @@ use heapless::String;
 use core::fmt::Write as _;
 use embedded_io_async as io_async;
 use unicode_width::UnicodeWidthStr;
+use crate::editor::BaseConfig;
 use crate::char_attr;
 use crate::utf8_accumulator::Utf8Accumulator;
 
@@ -9,12 +10,13 @@ use crate::utf8_accumulator::Utf8Accumulator;
 // ConsoleConfig
 //-----------------------------------------------------------------------------
 pub struct ConsoleConfig {
-    query_text_area_size: bool,
+    pub base_config: BaseConfig,
+    pub query_text_area_size: bool,
 }
 
 impl ConsoleConfig {
     pub fn default() -> Self {
-        Self { query_text_area_size: true }
+        Self { base_config: BaseConfig::default(), query_text_area_size: true }
     }
 
     pub fn query_text_area_size(self, query_text_area_size: bool) -> Self {
@@ -58,6 +60,8 @@ impl<Writer: io_async::Write, CharAttr: char_attr::CharAttr> ConsoleOutput<Write
 impl<Writer: io_async::Write, CharAttr: char_attr::CharAttr> crate::editor::Output for ConsoleOutput<Writer, CharAttr> {
     type Error = Writer::Error;
     type CharAttr = CharAttr;
+
+    fn base_config(&self) -> &BaseConfig { &self.config.base_config }
 
     async fn init(&mut self) {
         self.utf8_acc.reset();

@@ -20,51 +20,9 @@ pub use crate::char_attr::{
 pub use crate::console_output::ConsoleConfig;
 pub use crate::graphics_output::GraphicsConfig;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Event {
-    None,
-    Entered,
-    ReqCompletionFirst,
-    ReqCompletionPrev,
-    ReqCompletionNext,
-}
-
-pub trait Output {
-    type Error;
-    type CharAttr: char_attr::CharAttr;
-
-    fn init(&mut self) -> impl Future<Output = ()>;
-    fn draw(&mut self, data: &[u8]) -> impl Future<Output = ()>;
-    fn print(&mut self, s: &str) -> impl Future<Output = ()>;
-    fn new_line(&mut self, line_buf_combined: &[u8]) -> impl Future<Output = ()>; 
-    fn move_cursor_left_n(&mut self, n: usize) -> impl Future<Output = ()>;
-    fn move_cursor_right_n(&mut self, n: usize) -> impl Future<Output = ()>;
-    fn delete_to_line_end(&mut self) -> impl Future<Output = ()>;
-    fn blink_cursor(&mut self) -> impl Future<Output = ()> {
-        core::future::pending()
-    }
-    fn query_text_area_size(&mut self) -> impl Future<Output = ()>;
-    fn update_text_area_size(&mut self, n_cols: usize, n_rows: usize) -> impl Future<Output = ()>;
-}
-
-pub struct DummyOutput;
-
-impl Output for DummyOutput {
-    type Error = ();
-    type CharAttr = char_attr::CharAttrMonoColor;
-
-    async fn init(&mut self) {}
-    async fn draw(&mut self, _data: &[u8]) {}
-    async fn print(&mut self, _s: &str) {}
-    async fn new_line(&mut self, _line_buf_combined: &[u8]) {}
-    async fn move_cursor_left_n(&mut self, _n: usize) {}
-    async fn move_cursor_right_n(&mut self, _n: usize) {}
-    async fn delete_to_line_end(&mut self) {}
-    async fn blink_cursor(&mut self) {}
-    async fn query_text_area_size(&mut self) -> () {}
-    async fn update_text_area_size(&mut self, _n_cols: usize, _n_rows: usize) {}
-}
-
+//-----------------------------------------------------------------------------
+// Constructor functions
+//-----------------------------------------------------------------------------
 pub fn with_console<'a, CharAttr>(
     line_buf: &'a mut [u8],
     history_buf: &'a mut [u8],
@@ -78,26 +36,110 @@ where
     Editor::new(line_buf, history_buf, output)
 }
 
-pub fn with_graphics<'a, CharAttr, DrawTarget, DelayNs, FnRefresh, ColorType>(
+pub fn with_graphics<'a, CharAttr, DrawTarget, DelayNs, FnRefresh>(
     line_buf: &'a mut [u8],
     history_buf: &'a mut [u8],
-    rollback_buf: &'a mut [u8],
     target: DrawTarget,
-    config: GraphicsConfig<ColorType>,
+    rollback_buf: &'a mut [u8],
+    config: GraphicsConfig<<DrawTarget as eg::draw_target::DrawTarget>::Color>,
     delay: DelayNs,
     fn_refresh: FnRefresh,
 ) -> Editor<'a, impl crate::editor::Output<CharAttr = CharAttr>>
 where
     CharAttr: char_attr::CharAttr,
-    DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
+    DrawTarget: eg::draw_target::DrawTarget,
+    DrawTarget::Color: From<eg::pixelcolor::Rgb888>,
     DelayNs: hal_async::delay::DelayNs,
     FnRefresh: FnMut(&mut DrawTarget),
-    ColorType: From<eg::pixelcolor::Rgb888>,
 {
-    let output = crate::graphics_output::GraphicsOutput::new(target, rollback_buf, config, delay, fn_refresh);
+    let output = crate::graphics_output::GraphicsOutput::new
+        (target, rollback_buf, config, delay, fn_refresh);
     Editor::new(line_buf, history_buf, output)
 }
 
+//-----------------------------------------------------------------------------
+// Event
+//-----------------------------------------------------------------------------
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Event {
+    None,
+    Entered,
+    ReqCompletionFirst,
+    ReqCompletionPrev,
+    ReqCompletionNext,
+}
+
+//-----------------------------------------------------------------------------
+// Output
+//-----------------------------------------------------------------------------
+pub trait Output {
+    type Error;
+    type CharAttr: char_attr::CharAttr;
+
+    fn base_config(&self) -> &BaseConfig;
+    fn init(&mut self) -> impl Future<Output = ()>;
+    fn draw(&mut self, data: &[u8]) -> impl Future<Output = ()>;
+    fn print(&mut self, s: &str) -> impl Future<Output = ()>;
+    fn new_line(&mut self, line_buf_combined: &[u8]) -> impl Future<Output = ()>; 
+    fn move_cursor_left_n(&mut self, n: usize) -> impl Future<Output = ()>;
+    fn move_cursor_right_n(&mut self, n: usize) -> impl Future<Output = ()>;
+    fn delete_to_line_end(&mut self) -> impl Future<Output = ()>;
+    fn blink_cursor(&mut self) -> impl Future<Output = ()> { core::future::pending() }
+    fn query_text_area_size(&mut self) -> impl Future<Output = ()>;
+    fn update_text_area_size(&mut self, n_cols: usize, n_rows: usize) -> impl Future<Output = ()>;
+}
+
+//-----------------------------------------------------------------------------
+// BaseConfig
+//-----------------------------------------------------------------------------
+pub struct BaseConfig {}
+
+impl BaseConfig {
+    pub fn default() -> Self {
+        Self {}
+    }
+} 
+
+//-----------------------------------------------------------------------------
+// DummyOutput
+//-----------------------------------------------------------------------------
+pub struct DummyOutput {
+    dummy_config: DummyConfig,
+}
+
+impl Output for DummyOutput {
+    type Error = ();
+    type CharAttr = char_attr::CharAttrMonoColor;
+
+    fn base_config(&self) -> &BaseConfig { &self.dummy_config.base_config }
+    async fn init(&mut self) {}
+    async fn draw(&mut self, _data: &[u8]) {}
+    async fn print(&mut self, _s: &str) {}
+    async fn new_line(&mut self, _line_buf_combined: &[u8]) {}
+    async fn move_cursor_left_n(&mut self, _n: usize) {}
+    async fn move_cursor_right_n(&mut self, _n: usize) {}
+    async fn delete_to_line_end(&mut self) {}
+    async fn blink_cursor(&mut self) {}
+    async fn query_text_area_size(&mut self) -> () {}
+    async fn update_text_area_size(&mut self, _n_cols: usize, _n_rows: usize) {}
+}
+
+//-----------------------------------------------------------------------------
+// DummyConfig
+//-----------------------------------------------------------------------------
+pub struct DummyConfig {
+    pub base_config: BaseConfig,
+}
+
+impl DummyConfig {
+    pub fn default() -> Self {
+        Self { base_config: BaseConfig::default() }
+    }
+}
+
+//-----------------------------------------------------------------------------
+// Editor
+//-----------------------------------------------------------------------------
 pub struct Editor<'a, OutputT: Output> {
     line_buf_whole: &'a mut [u8],
     history_buf: RoundBuffer<'a>,
@@ -580,6 +622,10 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
     }
 }
 
+
+//-----------------------------------------------------------------------------
+// Simple tasks
+//-----------------------------------------------------------------------------
 #[allow(dead_code)]
 pub async fn simple_task_console<Writer, KeyReader>
     (writer: Writer, config: ConsoleConfig, key_reader: KeyReader, enable_break: bool)
@@ -626,7 +672,8 @@ where
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
-    let editor = with_graphics::<CharAttrMonoColor, _, _, _, _>(line_buf, history_buf, rollback_buf, target, config, delay, fn_refresh);
+    let editor = with_graphics::<CharAttrMonoColor, _, _, _>(
+        line_buf, history_buf, target, rollback_buf, config, delay, fn_refresh);
     simple_task_common(editor, key_reader, enable_break).await;
 }
 

@@ -2,6 +2,7 @@ use embedded_hal_async as hal_async;
 use embedded_graphics as eg;
 use embedded_graphics::prelude::*;
 use unicode_width::UnicodeWidthStr;
+use crate::editor::BaseConfig;
 use crate::char_attr;
 use crate::round_buffer::{WrappedRoundBuffer, RoundBufferMarker};
 use crate::utf8_accumulator::Utf8Accumulator;
@@ -10,6 +11,7 @@ use crate::utf8_accumulator::Utf8Accumulator;
 // GraphicsConfig
 //-----------------------------------------------------------------------------
 pub struct GraphicsConfig<ColorType> {
+    pub base_config: BaseConfig,
     pub cursor_blinking_interval: u32,
     pub font: &'static eg::mono_font::MonoFont<'static>,
     pub text_color: ColorType,
@@ -20,6 +22,7 @@ pub struct GraphicsConfig<ColorType> {
 impl<ColorType: From<eg::pixelcolor::Rgb888>> GraphicsConfig<ColorType> {
     pub fn default() -> Self {
         Self {
+            base_config: BaseConfig::default(),
             cursor_blinking_interval: 500,
             font: &eg::mono_font::ascii::FONT_6X10,
             text_color: ColorType::from(eg::pixelcolor::Rgb888::WHITE),
@@ -229,6 +232,8 @@ where
 {
     type Error = ();
     type CharAttr = CharAttr;
+
+    fn base_config(&self) -> &BaseConfig { &self.config.base_config }
 
     async fn init(&mut self) {
         self.utf8_acc.reset();
