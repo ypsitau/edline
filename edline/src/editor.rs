@@ -628,11 +628,11 @@ pub async fn simple_task(mut editor: Editor<'_, impl Output>,
     mut reader: impl keycode::ReadKey, enable_break: bool)
 {
     let mut sbuf_result: heapless::String<128> = heapless::String::new();
-    editor.init().await;
-    editor.set_prompt("> ");
-    let mut cnt_completition = 0;
     let mut sbuf_completion: heapless::String<128> = heapless::String::new();
     let mut sbuf = String::<128>::new();
+    let mut cnt_completition = 0;
+    editor.init().await;
+    editor.set_prompt("> ");
     loop {
         let key = editor.read_key(&mut reader).await;
         if let Ok(key) = key {
