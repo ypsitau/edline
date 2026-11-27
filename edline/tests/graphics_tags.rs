@@ -4,6 +4,7 @@ use edline::{
 };
 use embedded_graphics::{mock_display::MockDisplay, pixelcolor::Rgb888};
 use embedded_hal_async::delay::DelayNs;
+use std::marker::PhantomData;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Context, Poll, Waker};
 
@@ -46,6 +47,9 @@ fn graphics_tags_infer_the_character_attribute() {
     check_tag!(tag::CharAttr16ColorsDeco, CharAttr16ColorsDeco);
     check_tag!(tag::CharAttr256Colors, CharAttr256Colors);
     check_tag!(tag::CharAttr256ColorsDeco, CharAttr256ColorsDeco);
+    fn assert_tracked_tag(_: impl edline::CharAttrTag<CharAttr = TrackedAttr>) {}
+    assert_tracked_tag(PhantomData::<TrackedAttr>);
+    assert_tracked_tag(TrackedTag);
 }
 
 static ATTR_CREATED: AtomicUsize = AtomicUsize::new(0);
@@ -118,7 +122,7 @@ impl embedded_keycode::ReadKey for BreakReader {
 fn simple_tasks_use_the_attribute_selected_by_the_tag() {
     let mut buffer = [0; 128];
     let console = edline::simple_task_console(
-        TrackedTag,
+        PhantomData::<TrackedAttr>,
         &mut buffer[..],
         edline::ConsoleConfig::default().query_text_area_size(false),
         BreakReader,
@@ -135,7 +139,7 @@ fn simple_tasks_use_the_attribute_selected_by_the_tag() {
     let mut target = MockDisplay::<Rgb888>::new();
     target.set_allow_overdraw(true);
     let graphics = edline::simple_task_graphics(
-        TrackedTag,
+        PhantomData::<TrackedAttr>,
         target,
         GraphicsConfig::default(),
         BreakReader,

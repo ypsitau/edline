@@ -1,4 +1,5 @@
 use crate::color::Color;
+use core::marker::PhantomData;
 
 const DECO_DEFAULT: u8          = 0x80;
 const DECO_BOLD: u8             = 1 << 0;
@@ -102,9 +103,12 @@ pub trait CharAttr: Sized + Copy + PartialEq {
     fn is_changed_strikethrough(&self, other: &Self) -> bool { self.is_strikethrough() != other.is_strikethrough() }
 }
 
-/// A zero-sized tag selecting a character attribute type.
 pub trait CharAttrTag {
     type CharAttr: CharAttr;
+}
+
+impl<T: CharAttr> CharAttrTag for PhantomData<T> {
+    type CharAttr = T;
 }
 
 /// Tags for selecting character attribute types.
@@ -112,12 +116,10 @@ pub mod tag {
     macro_rules! char_attr_tags {
         ($($char_attr:ident),+ $(,)?) => {
             $(
-                #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-                pub struct $char_attr;
+                pub type $char_attr = core::marker::PhantomData<super::$char_attr>;
 
-                impl super::CharAttrTag for $char_attr {
-                    type CharAttr = super::$char_attr;
-                }
+                #[allow(non_upper_case_globals)]
+                pub const $char_attr: $char_attr = core::marker::PhantomData;
             )+
         };
     }
