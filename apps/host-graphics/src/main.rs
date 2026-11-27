@@ -61,7 +61,7 @@ async fn main() { //-> Result<(), core::convert::Infallible> {
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
         STATIC_CELL.init([0u8; BUFSIZE])
     };
-    let editor = edline::with_graphics(edline::tag::CharAttr16Colors,
+    let editor = edline::with_graphics(edline::tag::CharAttrMonoColor,
         line_buf, history_buf, target, rollback_buf, config, ThreadDelay,
         |target| request_update(&update_sender, target));
     let task_edline = edline::simple_task_common(editor, key_reader, true);
