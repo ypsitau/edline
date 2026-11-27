@@ -77,8 +77,17 @@ async fn main(_spawner: emb::executor::Spawner) {
     let task_usb = usb_device.run();
     let config = edline::ConsoleConfig::default();
     let key_reader = serkey::Reader::new(cdc_receiver);
-    let task_edline = edline::simple_task_console(edline::tag::CharAttrMonoColor,
-        cdc_sender, config, key_reader, false);
+    let line_buf = {
+        static CELL: StaticCell<[u8; 128]> = StaticCell::new();
+        CELL.init([0; 128])
+    };
+    let history_buf = {
+        static CELL: StaticCell<[u8; 1024]> = StaticCell::new();
+        CELL.init([0; 1024])
+    };
+    let editor = edline::with_console(edline::tag::CharAttrMonoColor,
+        line_buf, history_buf, cdc_sender, config);
+    let task_edline = edline::simple_task(editor, key_reader, false);
     emb::futures::join::join(task_usb, task_edline).await;
 }
 

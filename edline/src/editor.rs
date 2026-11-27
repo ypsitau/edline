@@ -2,7 +2,6 @@ use core::fmt::Write as _;
 use core::future::Future;
 use embedded_io_async as io_async;
 use heapless::String;
-use static_cell::StaticCell;
 use embedded_graphics as eg;
 use embedded_hal_async as hal_async;
 use embedded_keycode as keycode;
@@ -623,59 +622,9 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
 
 
 //-----------------------------------------------------------------------------
-// Simple tasks
+// Simple task
 //-----------------------------------------------------------------------------
-#[allow(dead_code)]
-/// Runs a console editor using the character attribute type selected by `char_attr_tag`.
-pub async fn simple_task_console(char_attr_tag: impl CharAttrTag,
-    writer: impl io_async::Write, config: ConsoleConfig,
-    key_reader: impl keycode::ReadKey, enable_break: bool)
-{
-    let line_buf = {
-        const BUFSIZE: usize = 128;
-        static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
-        STATIC_CELL.init([0u8; BUFSIZE])
-    };
-    let history_buf = {
-        const BUFSIZE: usize = 1024;
-        static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
-        STATIC_CELL.init([0u8; BUFSIZE])
-    };
-    let editor = with_console(char_attr_tag, line_buf, history_buf, writer, config);
-    simple_task_common(editor, key_reader, enable_break).await;
-}
-
-#[allow(dead_code)]
-/// Runs a graphics editor using the character attribute type selected by `char_attr_tag`.
-pub async fn simple_task_graphics<DrawTarget, ColorType>(
-    char_attr_tag: impl CharAttrTag, target: DrawTarget, config: GraphicsConfig<ColorType>,
-    key_reader: impl keycode::ReadKey, enable_break: bool,
-    delay: impl hal_async::delay::DelayNs, fn_refresh: impl FnMut(&mut DrawTarget))
-where
-    DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
-    ColorType: From<eg::pixelcolor::Rgb888>,
-{
-    let line_buf = {
-        const BUFSIZE: usize = 128;
-        static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
-        STATIC_CELL.init([0u8; BUFSIZE])
-    };
-    let history_buf = {
-        const BUFSIZE: usize = 1024;
-        static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
-        STATIC_CELL.init([0u8; BUFSIZE])
-    };
-    let rollback_buf = {
-        const BUFSIZE: usize = 1024;
-        static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
-        STATIC_CELL.init([0u8; BUFSIZE])
-    };
-    let editor = with_graphics(char_attr_tag,
-        line_buf, history_buf, target, rollback_buf, config, delay, fn_refresh);
-    simple_task_common(editor, key_reader, enable_break).await;
-}
-
-pub async fn simple_task_common(mut editor: Editor<'_, impl Output>,
+pub async fn simple_task(mut editor: Editor<'_, impl Output>,
     mut reader: impl keycode::ReadKey, enable_break: bool)
 {
     let mut sbuf_result: heapless::String<128> = heapless::String::new();

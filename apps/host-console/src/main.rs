@@ -29,7 +29,7 @@ async fn main() -> std::io::Result<()> {
         STATIC_CELL.init([0u8; BUFSIZE])
     };
     let editor = edline::with_console(edline::tag::CharAttr16ColorsDeco, line_buf, history_buf, stdout, config);
-    edline::simple_task_common(editor, key_reader, true).await;
+    edline::simple_task(editor, key_reader, true).await;
     crossterm::terminal::disable_raw_mode()?;
     #[cfg(windows)]
     unsafe {

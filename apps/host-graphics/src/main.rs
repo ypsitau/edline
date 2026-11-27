@@ -64,7 +64,7 @@ async fn main() { //-> Result<(), core::convert::Infallible> {
     let editor = edline::with_graphics(edline::tag::CharAttrMonoColor,
         line_buf, history_buf, target, rollback_buf, config, ThreadDelay,
         |target| request_update(&update_sender, target));
-    let task_edline = edline::simple_task_common(editor, key_reader, true);
+    let task_edline = edline::simple_task(editor, key_reader, true);
     tokio::select! {
         _ = task_window => {}
         _ = task_edline => {}

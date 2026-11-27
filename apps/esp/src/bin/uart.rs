@@ -6,6 +6,7 @@ mod emb {
     pub use embassy_executor as executor;
 }
 use embedded_io_async as io_async;
+use static_cell::StaticCell;
 
 struct Board<UartTx, UartRx> {
     uart_tx: UartTx,
@@ -17,9 +18,17 @@ async fn main(_spawner: emb::executor::Spawner) {
     let board = init_board();
     let config = edline::ConsoleConfig::default().query_text_area_size(false);
     let key_reader = serkey::Reader::new(board.uart_rx);
-    let task_edline = edline::simple_task_console(edline::tag::CharAttrMonoColor,
-        board.uart_tx, config, key_reader, false);
-    task_edline.await;
+    let line_buf = {
+        static CELL: StaticCell<[u8; 128]> = StaticCell::new();
+        CELL.init([0; 128])
+    };
+    let history_buf = {
+        static CELL: StaticCell<[u8; 1024]> = StaticCell::new();
+        CELL.init([0; 1024])
+    };
+    let editor = edline::with_console(edline::tag::CharAttrMonoColor,
+        line_buf, history_buf, board.uart_tx, config);
+    edline::simple_task(editor, key_reader, false).await;
 }
 
 //-----------------------------------------------------------------------------

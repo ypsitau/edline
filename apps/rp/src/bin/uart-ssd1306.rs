@@ -23,6 +23,7 @@ mod emb {
 
 use rp_uart_display::board_rp::{self, prelude::*};
 use embedded_graphics as eg;
+use static_cell::StaticCell;
 
 #[emb::executor::main]
 async fn main(_spawner: emb::executor::Spawner) {
@@ -33,8 +34,20 @@ async fn main(_spawner: emb::executor::Spawner) {
         .background_color(From::from(eg::pixelcolor::Rgb888::new(0, 0, 128)))
         .ht_cursor(2);
     let key_reader = serkey::Reader::new(board.uart_rx);
-    let task_edline = edline::simple_task_graphics(edline::tag::CharAttrMonoColor,
-        board.display, config, key_reader, false, emb::time::Delay,
+    let line_buf = {
+        static CELL: StaticCell<[u8; 128]> = StaticCell::new();
+        CELL.init([0; 128])
+    };
+    let history_buf = {
+        static CELL: StaticCell<[u8; 1024]> = StaticCell::new();
+        CELL.init([0; 1024])
+    };
+    let rollback_buf = {
+        static CELL: StaticCell<[u8; 1024]> = StaticCell::new();
+        CELL.init([0; 1024])
+    };
+    let editor = edline::with_graphics(edline::tag::CharAttrMonoColor,
+        line_buf, history_buf, board.display, rollback_buf, config, emb::time::Delay,
         |display| { display.flush().unwrap() });
-    task_edline.await;
+    edline::simple_task(editor, key_reader, false).await;
 }

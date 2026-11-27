@@ -121,13 +121,16 @@ impl embedded_keycode::ReadKey for BreakReader {
 #[test]
 fn simple_tasks_use_the_attribute_selected_by_the_tag() {
     let mut buffer = [0; 128];
-    let console = edline::simple_task_console(
+    let mut line_buf = [0; 128];
+    let mut history_buf = [0; 1024];
+    let editor = edline::with_console(
         PhantomData::<TrackedAttr>,
+        &mut line_buf,
+        &mut history_buf,
         &mut buffer[..],
         edline::ConsoleConfig::default().query_text_area_size(false),
-        BreakReader,
-        true,
     );
+    let console = edline::simple_task(editor, BreakReader, true);
     let mut console = std::pin::pin!(console);
     let mut context = Context::from_waker(Waker::noop());
     assert!(matches!(
@@ -138,15 +141,20 @@ fn simple_tasks_use_the_attribute_selected_by_the_tag() {
 
     let mut target = MockDisplay::<Rgb888>::new();
     target.set_allow_overdraw(true);
-    let graphics = edline::simple_task_graphics(
+    let mut line_buf = [0; 128];
+    let mut history_buf = [0; 1024];
+    let mut rollback_buf = [0; 1024];
+    let editor = edline::with_graphics(
         PhantomData::<TrackedAttr>,
+        &mut line_buf,
+        &mut history_buf,
         target,
+        &mut rollback_buf,
         GraphicsConfig::default(),
-        BreakReader,
-        true,
         TestDelay,
         |_| {},
     );
+    let graphics = edline::simple_task(editor, BreakReader, true);
     let mut graphics = std::pin::pin!(graphics);
     assert!(matches!(
         graphics.as_mut().poll(&mut context),
