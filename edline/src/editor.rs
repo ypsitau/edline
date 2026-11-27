@@ -17,8 +17,8 @@ pub use crate::char_attr::{
     CharAttr16Colors, CharAttr16ColorsDeco,
     CharAttr256Colors, CharAttr256ColorsDeco,
 };
-pub use crate::console_output::ConsoleConfig;
-pub use crate::graphics_output::GraphicsConfig;
+pub use crate::console_output::{ConsoleConfig, ConsoleOutput};
+pub use crate::graphics_output::{GraphicsConfig, GraphicsOutput};
 
 //-----------------------------------------------------------------------------
 // Constructor functions
@@ -29,11 +29,11 @@ pub fn with_console<'a, CharAttr>(
     history_buf: &'a mut [u8],
     writer: impl io_async::Write,
     config: ConsoleConfig,
-) -> Editor<'a, impl crate::editor::Output<CharAttr = CharAttr>>
+) -> Editor<'a, impl Output<CharAttr = CharAttr>>
 where
     CharAttr: char_attr::CharAttr,
 {
-    let output = crate::console_output::ConsoleOutput::new(writer, config);
+    let output = ConsoleOutput::new(writer, config);
     Editor::new(line_buf, history_buf, output)
 }
 
@@ -43,16 +43,16 @@ pub fn with_graphics<'a, CharAttr, DrawTarget>(
     history_buf: &'a mut [u8],
     target: DrawTarget,
     rollback_buf: &'a mut [u8],
-    config: GraphicsConfig<<DrawTarget as eg::draw_target::DrawTarget>::Color>,
+    config: GraphicsConfig<DrawTarget::Color>,
     delay: impl hal_async::delay::DelayNs,
     fn_refresh: impl FnMut(&mut DrawTarget),
-) -> Editor<'a, impl crate::editor::Output<CharAttr = CharAttr>>
+) -> Editor<'a, impl Output<CharAttr = CharAttr>>
 where
     CharAttr: char_attr::CharAttr,
     DrawTarget: eg::draw_target::DrawTarget,
     DrawTarget::Color: From<eg::pixelcolor::Rgb888>,
 {
-    let output = crate::graphics_output::GraphicsOutput::new(target, rollback_buf, config, delay, fn_refresh);
+    let output = GraphicsOutput::new(target, rollback_buf, config, delay, fn_refresh);
     Editor::new(line_buf, history_buf, output)
 }
 
@@ -627,11 +627,9 @@ impl<'a, OutputT: Output> Editor<'a, OutputT> {
 //-----------------------------------------------------------------------------
 #[allow(dead_code)]
 /// Runs a console editor using the character attribute type selected by `char_attr_tag`.
-pub async fn simple_task_console<Writer, KeyReader>
-    (char_attr_tag: impl CharAttrTag, writer: Writer, config: ConsoleConfig, key_reader: KeyReader, enable_break: bool)
-where
-    Writer: io_async::Write,
-    KeyReader: keycode::ReadKey,
+pub async fn simple_task_console(char_attr_tag: impl CharAttrTag,
+    writer: impl io_async::Write, config: ConsoleConfig,
+    key_reader: impl keycode::ReadKey, enable_break: bool)
 {
     let line_buf = {
         const BUFSIZE: usize = 128;
@@ -649,14 +647,13 @@ where
 
 #[allow(dead_code)]
 /// Runs a graphics editor using the character attribute type selected by `char_attr_tag`.
-pub async fn simple_task_graphics<DrawTarget, ColorType, KeyReader, DelayNs, FnRefresh>
-    (char_attr_tag: impl CharAttrTag, target: DrawTarget, config: GraphicsConfig<ColorType>, key_reader: KeyReader, enable_break: bool, delay: DelayNs, fn_refresh: FnRefresh)
+pub async fn simple_task_graphics<DrawTarget, ColorType>(
+    char_attr_tag: impl CharAttrTag, target: DrawTarget, config: GraphicsConfig<ColorType>,
+    key_reader: impl keycode::ReadKey, enable_break: bool,
+    delay: impl hal_async::delay::DelayNs, fn_refresh: impl FnMut(&mut DrawTarget))
 where
     DrawTarget: eg::draw_target::DrawTarget<Color = ColorType>,
     ColorType: From<eg::pixelcolor::Rgb888>,
-    KeyReader: keycode::ReadKey,
-    DelayNs: hal_async::delay::DelayNs,
-    FnRefresh: FnMut(&mut DrawTarget),
 {
     let line_buf = {
         const BUFSIZE: usize = 128;
@@ -678,10 +675,8 @@ where
     simple_task_common(editor, key_reader, enable_break).await;
 }
 
-pub async fn simple_task_common<OutputT, KeyReader>(mut editor: Editor<'_, OutputT>, mut reader: KeyReader, enable_break: bool)
-where
-    OutputT: Output,
-    KeyReader: keycode::ReadKey,
+pub async fn simple_task_common(mut editor: Editor<'_, impl Output>,
+    mut reader: impl keycode::ReadKey, enable_break: bool)
 {
     let mut sbuf_result: heapless::String<128> = heapless::String::new();
     editor.init().await;
