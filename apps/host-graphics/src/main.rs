@@ -1,3 +1,4 @@
+use static_cell::StaticCell;
 use embedded_hal_async as hal_async;
 use embedded_graphics as eg;
 use embedded_graphics::prelude::*;
@@ -45,9 +46,25 @@ async fn main() { //-> Result<(), core::convert::Infallible> {
         .font(&eg::mono_font::ascii::FONT_10X20)
         .text_color(From::from(eg::pixelcolor::Rgb888::new(255, 255, 255)))
         .background_color(From::from(eg::pixelcolor::Rgb888::new(0, 0, 128)));
-    let task_edline = edline::simple_task_graphics(edline::tag::CharAttrMonoColor,
-        target, config, key_reader, true, ThreadDelay,
+    let line_buf = {
+        const BUFSIZE: usize = 128;
+        static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
+        STATIC_CELL.init([0u8; BUFSIZE])
+    };
+    let history_buf = {
+        const BUFSIZE: usize = 1024;
+        static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
+        STATIC_CELL.init([0u8; BUFSIZE])
+    };
+    let rollback_buf = {
+        const BUFSIZE: usize = 1024;
+        static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
+        STATIC_CELL.init([0u8; BUFSIZE])
+    };
+    let editor = edline::with_graphics(edline::tag::CharAttr16Colors,
+        line_buf, history_buf, target, rollback_buf, config, ThreadDelay,
         |target| request_update(&update_sender, target));
+    let task_edline = edline::simple_task_common(editor, key_reader, true);
     tokio::select! {
         _ = task_window => {}
         _ = task_edline => {}

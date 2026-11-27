@@ -1,3 +1,5 @@
+use static_cell::StaticCell;
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> std::io::Result<()> {
     crossterm::terminal::enable_raw_mode()?;
@@ -16,7 +18,18 @@ async fn main() -> std::io::Result<()> {
     let stdin = embedded_io_adapters::tokio_1::FromTokio::new(tokio::io::stdin());
     let key_reader = serkey::Reader::new(stdin);
     let config = edline::ConsoleConfig::default();
-    edline::simple_task_console(edline::tag::CharAttr16ColorsDeco, stdout, config, key_reader, true).await;
+    let line_buf = {
+        const BUFSIZE: usize = 128;
+        static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
+        STATIC_CELL.init([0u8; BUFSIZE])
+    };
+    let history_buf = {
+        const BUFSIZE: usize = 1024;
+        static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
+        STATIC_CELL.init([0u8; BUFSIZE])
+    };
+    let editor = edline::with_console(edline::tag::CharAttr16ColorsDeco, line_buf, history_buf, stdout, config);
+    edline::simple_task_common(editor, key_reader, true).await;
     crossterm::terminal::disable_raw_mode()?;
     #[cfg(windows)]
     unsafe {
